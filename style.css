@@ -1,0 +1,283 @@
+/* STC Chat Options */
+
+/* ── 聊天末尾选项框(AI 生成的编号卡片列表,紧凑版) ──────────── */
+
+/* 插件本地主题变量:默认跟随酒馆主题,可用 .stc-theme-dark / .stc-theme-light 覆盖 */
+#stc-chat-options-bar {
+    --stc-bg: var(--SmartThemeBlurTintColor, rgba(18, 18, 24, 0.92));
+    --stc-border: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+    --stc-fg: var(--SmartThemeBodyColor, #eee);
+    --stc-hover: var(--SmartThemeEmColor, rgba(255, 255, 255, 0.4));
+    --stc-num-bg: var(--SmartThemeBlurTintColor, rgba(255, 255, 255, 0.07));
+    --stc-num-border: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.14));
+    --stc-danger: var(--SmartThemeRedColor, #e74c3c);
+
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: min(680px, calc(100% - 20px));
+    margin: 8px auto;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* 深色主题(仅作用于选项框,不影响酒馆) */
+#stc-chat-options-bar.stc-theme-dark {
+    --stc-bg: rgba(23, 23, 29, 0.96);
+    --stc-border: rgba(255, 255, 255, 0.12);
+    --stc-fg: #e8e8ec;
+    --stc-hover: rgba(255, 255, 255, 0.45);
+    --stc-num-bg: rgba(255, 255, 255, 0.08);
+    --stc-num-border: rgba(255, 255, 255, 0.16);
+    --stc-danger: #f08080;
+}
+
+/* 浅色主题(仅作用于选项框,不影响酒馆) */
+#stc-chat-options-bar.stc-theme-light {
+    --stc-bg: rgba(250, 250, 252, 0.97);
+    --stc-border: rgba(0, 0, 0, 0.16);
+    --stc-fg: #26262c;
+    --stc-hover: rgba(0, 0, 0, 0.45);
+    --stc-num-bg: rgba(0, 0, 0, 0.06);
+    --stc-num-border: rgba(0, 0, 0, 0.18);
+    --stc-danger: #d63031;
+}
+
+#stc-chat-options-bar .stc-co-btn {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    min-height: 36px;
+    box-sizing: border-box;
+    padding: 7px 11px;
+    border-radius: 9px;
+    color: var(--stc-fg);
+    background: var(--stc-bg);
+    border: 1px solid var(--stc-border);
+    cursor: pointer;
+    user-select: none;
+    text-align: left;
+    transition: border-color 0.15s ease, filter 0.15s ease, transform 0.1s ease;
+}
+
+#stc-chat-options-bar .stc-co-btn:hover {
+    border-color: var(--stc-hover);
+    filter: brightness(1.08);
+}
+
+#stc-chat-options-bar .stc-co-btn:active {
+    transform: scale(0.995);
+}
+
+/* 序号徽章 */
+#stc-chat-options-bar .stc-co-num {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72em;
+    opacity: 0.85;
+    color: var(--stc-fg);
+    background: var(--stc-num-bg);
+    border: 1px solid var(--stc-num-border);
+}
+
+/* 文本区 */
+#stc-chat-options-bar .stc-co-main {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.86em;
+    line-height: 1.4;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+/* 状态行:生成中 / 失败重试 / 生成入口 */
+#stc-chat-options-bar .stc-co-state {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    box-sizing: border-box;
+    padding: 6px 11px;
+    border-radius: 9px;
+    font-size: 0.8em;
+    opacity: 0.85;
+    color: var(--stc-fg);
+    background: var(--stc-bg);
+    border: 1px dashed var(--stc-border);
+}
+
+#stc-chat-options-bar .stc-co-error {
+    color: var(--stc-danger);
+    opacity: 1;
+    cursor: pointer;
+    border-style: solid;
+}
+
+#stc-chat-options-bar .stc-co-entry {
+    cursor: pointer;
+    justify-content: center;
+}
+
+#stc-chat-options-bar .stc-co-entry:hover {
+    border-color: var(--stc-hover);
+    filter: brightness(1.08);
+    opacity: 1;
+}
+
+/* 换一批 */
+#stc-chat-options-bar .stc-co-refresh {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 0.72em;
+    opacity: 0.5;
+    cursor: pointer;
+    user-select: none;
+    color: var(--stc-fg);
+    transition: opacity 0.15s ease;
+}
+
+#stc-chat-options-bar .stc-co-refresh:hover {
+    opacity: 1;
+    color: var(--stc-hover);
+}
+
+/* ── 设置弹窗 ───────────────────────────────────────────────── */
+
+.stc-co-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.stc-co-settings .stc-co-settings-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.stc-co-settings .stc-co-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 10px;
+    background: var(--SmartThemeBlurTintColor);
+}
+
+.stc-co-settings .stc-co-block-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.95em;
+}
+
+.stc-co-settings .stc-co-hint {
+    font-size: 0.82em;
+    opacity: 0.6;
+    line-height: 1.5;
+}
+
+.stc-co-settings .stc-co-radio-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.stc-co-settings .stc-co-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stc-co-settings .stc-co-test-row {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.stc-co-settings .stc-co-jb-text {
+    width: 100%;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.stc-co-settings .stc-co-gen-prompt {
+    width: 100%;
+    resize: vertical;
+    box-sizing: border-box;
+    font-size: 0.82em;
+    line-height: 1.5;
+}
+
+.stc-co-settings .stc-co-field-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+.stc-co-settings .stc-co-field-row input {
+    width: 90px;
+    flex-shrink: 0;
+}
+
+.stc-co-settings .stc-co-depth-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+.stc-co-settings .stc-co-depth-row input {
+    width: 110px;
+    flex-shrink: 0;
+}
+
+/* ── 响应式:手机端 ─────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    #stc-chat-options-bar {
+        width: calc(100% - 10px);
+        gap: 5px;
+        margin: 6px auto;
+    }
+
+    #stc-chat-options-bar .stc-co-btn {
+        padding: 8px 10px;
+        border-radius: 8px;
+        gap: 8px;
+        min-height: 40px; /* 保证触控目标高度 */
+    }
+
+    #stc-chat-options-bar .stc-co-num {
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+    }
+
+    #stc-chat-options-bar .stc-co-main {
+        font-size: 0.84em;
+    }
+}
