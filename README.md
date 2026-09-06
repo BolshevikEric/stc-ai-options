@@ -65,6 +65,7 @@ git clone https://github.com/BolshevikEric/stc-ai-options
 ## 开发
 
 - 目录结构:`index.js`(入口)+ `settings.html`(设置面板模板)+ `style.css` + `manifest.json`
+ - **发版注意**:每次更新代码后,需同步递增 `manifest.json` 里 `js` / `css` 的 `?v=` 参数——部分前端会给扩展地址追加固定缓存参数,递增可强制客户端拉取新代码。
 - 官方扩展开发文档:<https://docs.sillytavern.app/for-contributors/writing-extensions/>
 
 ## 许可证
