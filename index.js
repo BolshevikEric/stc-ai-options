@@ -18,7 +18,7 @@ const MODULE_NAME = 'stc_chat_options';
 const LOG_PREFIX = '[STC Chat Options]';
 const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 // 模板版本号:更新 settings.html 后递增,绕开浏览器缓存
-const TEMPLATE_VERSION = '7';
+const TEMPLATE_VERSION = '8';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
 const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
@@ -43,6 +43,7 @@ const defaultSettings = {
     // 选项生成参数
     gen: {
         count: 4,      // 每次生成的选项数量
+        regex: '',     // 提取正则:从最新 AI 发言中抽取匹配内容发送,留空发送原文
         prompt: DEFAULT_GEN_PROMPT,
     },
     // 扩展自身 AI 调用使用的接口
@@ -216,6 +217,39 @@ function extractContent() {
     return '';
 }
 
+/**
+ * 按用户设置的正则从原文中抽取匹配内容。
+ * 支持 /pattern/flags 写法;无匹配或正则无效时回退发送原文。
+ * 有捕获组时取第 1 组,否则取整个匹配;全局模式下多个匹配按行拼接。
+ */
+function applyContentRegex(text, pattern) {
+    const src = String(pattern ?? '').trim();
+    if (!src) return text;
+    let re;
+    try {
+        const m = src.match(/^\/(.*)\/([a-z]*)$/s);
+        re = m ? new RegExp(m[1], m[2]) : new RegExp(src);
+    } catch (e) {
+        console.warn(LOG_PREFIX, '提取正则无效,发送原文:', e?.message);
+        return text;
+    }
+    try {
+        if (re.global) {
+            const matches = [...text.matchAll(re)];
+            if (!matches.length) return text;
+            const out = matches.map(m => (m.length > 1 ? m[1] ?? '' : m[0])).filter(Boolean).join('\n');
+            return out || text;
+        }
+        const m = text.match(re);
+        if (!m) return text;
+        const out = m.length > 1 ? (m[1] ?? m[0]) : m[0];
+        return out || text;
+    } catch (e) {
+        console.warn(LOG_PREFIX, '正则提取失败,发送原文:', e?.message);
+        return text;
+    }
+}
+
 function parseOptions(reply, count) {
     const text = String(reply ?? '').trim();
     if (!text) return [];
@@ -265,7 +299,7 @@ async function generateOptions({ manual = false } = {}) {
 
     try {
         const count = clampInt(settings.gen.count, 1, 8, 4);
-        const content = extractContent();
+        const content = applyContentRegex(extractContent(), settings.gen.regex);
         if (!content) throw new Error('没有可用的对话内容');
         const prompt = String(settings.gen.prompt || DEFAULT_GEN_PROMPT)
             .replaceAll('{{count}}', String(count))
@@ -484,6 +518,11 @@ function wireSettingsContent($content) {
     $count.val(settings.gen.count).on('change', function () {
         settings.gen.count = clampInt($(this).val(), 1, 8, 4);
         $(this).val(settings.gen.count);
+        persist();
+    });
+
+    $content.find('#stc-co-gen-regex').val(settings.gen.regex ?? '').on('input', function () {
+        settings.gen.regex = String($(this).val() ?? '');
         persist();
     });
 

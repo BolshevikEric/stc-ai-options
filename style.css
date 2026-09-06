@@ -241,6 +241,20 @@
     flex-shrink: 0;
 }
 
+.stc-co-settings .stc-co-field-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.85em;
+    opacity: 0.85;
+}
+
+.stc-co-settings .stc-co-field-col input {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: var(--monoFontFamily, monospace);
+}
+
 .stc-co-settings .stc-co-depth-row {
     display: flex;
     align-items: center;
