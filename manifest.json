@@ -4,8 +4,8 @@
     "requires": [],
     "optional": [],
     "js": "index.js?v=2",
-    "css": "style.css?v=2",
+    "css": "style.css?v=3",
     "author": "ZhaiKer",
-    "version": "0.2.4",
+    "version": "0.3.0",
     "homePage": "https://github.com/BolshevikEric/stc-ai-options"
 }
