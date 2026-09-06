@@ -259,21 +259,20 @@ function applyContentRegex(text, pattern) {
 }
 
 /**
- * 角色/用户占位符替换:支持 {{char}}/{{user}} 与 <char>/<user>(酒馆原生两种形态),
- * 取值走酒馆原生宏引擎(substituteParams),解析为空时回退「角色」/「用户」。
+ * 酒馆原生占位符全量替换:整段交给酒馆原生宏引擎(substituteParams)处理,
+ * {{char}}/{{user}}、<char>/<user>、{{time}}、{{date}}、{{roll}} 等全部按原生规范取值;
+ * 角色/用户解析为空时回退「角色」/「用户」。
  * 只用于生成指令模板与世界书条目内容,{{content}}(最新剧情原文)不做替换,
  * 避免剧情里引用的字面占位符被误改。
  */
-function applyCharUserMacros(text) {
+function applyNativeMacros(text) {
     let str = String(text ?? '');
-    if (!str.includes('{{') && !/<(char|user)>/i.test(str)) return str;
-    const char = String(substituteParams('{{char}}') ?? '').trim() || '角色';
-    const user = String(substituteParams('{{user}}') ?? '').trim() || '用户';
-    str = str.replace(/\{\{\s*char\s*\}\}/gi, () => char);
-    str = str.replace(/\{\{\s*user\s*\}\}/gi, () => user);
-    str = str.replace(/<char>/gi, () => char);
-    str = str.replace(/<user>/gi, () => user);
-    return str;
+    if (!str) return str;
+    const char = String(substituteParams('{{char}}') ?? '').trim();
+    const user = String(substituteParams('{{user}}') ?? '').trim();
+    if (!char) str = str.replace(/\{\{\s*char\s*\}\}/gi, '角色').replace(/<char>/gi, '角色');
+    if (!user) str = str.replace(/\{\{\s*user\s*\}\}/gi, '用户').replace(/<user>/gi, '用户');
+    return substituteParams(str);
 }
 
 function parseOptions(reply, count) {
@@ -332,12 +331,12 @@ async function generateOptions({ manual = false } = {}) {
             await ensureWorldBooks();
         }
         const worldInfo = buildWorldInfoContent();
-        let prompt = applyCharUserMacros(String(settings.gen.prompt || DEFAULT_GEN_PROMPT))
+        let prompt = applyNativeMacros(String(settings.gen.prompt || DEFAULT_GEN_PROMPT))
             .replaceAll('{{count}}', () => String(count))
             .replaceAll('{{content}}', () => content);
-        // 世界书设定注入到正文末尾(条目内容里的 {{char}}/{{user}} 同样替换)
+        // 世界书设定注入到正文末尾(条目内容同样做原生占位符替换)
         if (worldInfo) {
-            prompt = `${prompt}\n\n${applyCharUserMacros(worldInfo)}`;
+            prompt = `${prompt}\n\n${applyNativeMacros(worldInfo)}`;
         }
         // 破限词必须在最开头
         const jbText = String(settings.jailbreak.text ?? '').trim();
