@@ -21,8 +21,7 @@ const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 const TEMPLATE_VERSION = '10';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
-const DEFAULT_GEN_PROMPT = `{{worldinfo}}
-你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
+const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
 
 要求:
 - 以用户的第一人称视角撰写,简短自然,每条不超过 25 个字
@@ -314,14 +313,17 @@ async function generateOptions({ manual = false } = {}) {
             await ensureWorldBooks();
         }
         const worldInfo = buildWorldInfoContent();
-        const templateText = String(settings.gen.prompt || DEFAULT_GEN_PROMPT);
-        const hasWorldInfoPlaceholder = templateText.includes('{{worldinfo}}');
-        let prompt = templateText
-            .replaceAll('{{worldinfo}}', () => worldInfo)
+        let prompt = String(settings.gen.prompt || DEFAULT_GEN_PROMPT)
             .replaceAll('{{count}}', () => String(count))
             .replaceAll('{{content}}', () => content);
-        if (!hasWorldInfoPlaceholder && worldInfo) {
-            prompt = `${worldInfo}\n\n${prompt}`;
+        // 世界书设定注入到正文末尾
+        if (worldInfo) {
+            prompt = `${prompt}\n\n${worldInfo}`;
+        }
+        // 破限词必须在最开头
+        const jbText = String(settings.jailbreak.text ?? '').trim();
+        if (settings.jailbreak.enabled && jbText) {
+            prompt = `${jbText}\n\n${prompt}`;
         }
         const reply = await generateWithConfig(prompt, {
             systemPrompt: '你是选项生成器,只输出 JSON 数组。',
@@ -351,7 +353,8 @@ function esc(text) {
     return String(text).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
-// 从酒馆后端拉取全部世界书,并按已保存的勾选恢复状态
+// 从酒馆后端拉取全部世界书,并恢复勾选状态:
+// 同一会话内以内存中的勾选为准(避免重拉时丢失),跨页面加载时用已保存的勾选恢复
 async function loadWorldBooks() {
     const headers = await getCsrfHeaders();
     const list = await fetch('/api/worldinfo/list', { method: 'POST', headers })
@@ -370,17 +373,19 @@ async function loadWorldBooks() {
             const saved = Array.isArray(settings.wi.selections[item.file_id])
                 ? settings.wi.selections[item.file_id]
                 : [];
+            const prevBook = wiCache.find(b => b.id === item.file_id);
             const entries = Object.values(book.entries)
                 .filter(e => e && !e.disable)
                 .map(e => {
                     const keys = Array.isArray(e.key) ? e.key.join(', ') : String(e.key ?? '');
+                    const prev = prevBook?.entries.find(x => x.uid === e.uid);
                     return {
                         uid: e.uid,
                         title: String(e.comment ?? '').trim() || keys || `条目 ${e.uid}`,
                         keys,
                         content: String(e.content ?? ''),
                         constant: !!e.constant,
-                        checked: saved.includes(e.uid),
+                        checked: prev ? prev.checked : saved.includes(e.uid),
                     };
                 });
             books.push({ id: item.file_id, name: String(book.name || item.name || item.file_id), entries });
