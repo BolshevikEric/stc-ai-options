@@ -397,6 +397,12 @@
     accent-color: var(--SmartThemeEmColor, #7aa2f7);
 }
 
+/* 酒馆全局样式重绘了复选框且没有半选态:全选显示对勾,部分选中显示横杠 */
+.stc-co-settings input[type="checkbox"].wi-book-check:indeterminate::before {
+    transform: scale(1);
+    clip-path: inset(32% 0);
+}
+
 .stc-co-settings .wi-entry-title {
     font-weight: 600;
     overflow: hidden;
