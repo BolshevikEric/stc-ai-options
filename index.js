@@ -8,6 +8,7 @@ import { eventSource, event_types } from '../../../events.js';
 import {
     saveSettingsDebounced,
     setExtensionPrompt,
+    substituteParams,
     extension_prompt_types,
     extension_prompt_roles,
     MAX_INJECTION_DEPTH,
@@ -257,6 +258,21 @@ function applyContentRegex(text, pattern) {
     }
 }
 
+/**
+ * {{char}}/{{user}} 占位符替换:取值走酒馆原生宏引擎(substituteParams),
+ * 解析为空时回退「角色」/「用户」。只用于生成指令模板与世界书条目内容,
+ * {{content}}(最新剧情原文)不做替换,避免剧情里引用的字面占位符被误改。
+ */
+function applyCharUserMacros(text) {
+    let str = String(text ?? '');
+    if (!str.includes('{{')) return str;
+    const char = String(substituteParams('{{char}}') ?? '').trim() || '角色';
+    const user = String(substituteParams('{{user}}') ?? '').trim() || '用户';
+    str = str.replace(/\{\{\s*char\s*\}\}/gi, () => char);
+    str = str.replace(/\{\{\s*user\s*\}\}/gi, () => user);
+    return str;
+}
+
 function parseOptions(reply, count) {
     const text = String(reply ?? '').trim();
     if (!text) return [];
@@ -313,12 +329,12 @@ async function generateOptions({ manual = false } = {}) {
             await ensureWorldBooks();
         }
         const worldInfo = buildWorldInfoContent();
-        let prompt = String(settings.gen.prompt || DEFAULT_GEN_PROMPT)
+        let prompt = applyCharUserMacros(String(settings.gen.prompt || DEFAULT_GEN_PROMPT))
             .replaceAll('{{count}}', () => String(count))
             .replaceAll('{{content}}', () => content);
-        // 世界书设定注入到正文末尾
+        // 世界书设定注入到正文末尾(条目内容里的 {{char}}/{{user}} 同样替换)
         if (worldInfo) {
-            prompt = `${prompt}\n\n${worldInfo}`;
+            prompt = `${prompt}\n\n${applyCharUserMacros(worldInfo)}`;
         }
         // 破限词必须在最开头
         const jbText = String(settings.jailbreak.text ?? '').trim();
@@ -769,15 +785,15 @@ function wireSettingsContent($content) {
     $content.find('input[name="stc-co-api-mode"]').on('change', syncApiMode);
     syncApiMode();
 
-    $content.find('#stc-co-api-url').val(api.url).on('change', function () {
+    $content.find('#stc-co-api-url').val(api.url).on('input change', function () {
         api.url = String($(this).val() ?? '').trim();
         persist();
     });
-    $content.find('#stc-co-api-key').val(api.key).on('change', function () {
+    $content.find('#stc-co-api-key').val(api.key).on('input change', function () {
         api.key = String($(this).val() ?? '');
         persist();
     });
-    $content.find('#stc-co-api-model').val(api.model).on('change', function () {
+    $content.find('#stc-co-api-model').val(api.model).on('input change', function () {
         api.model = String($(this).val() ?? '').trim();
         persist();
     });
