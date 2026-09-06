@@ -602,6 +602,8 @@ function renderWiList($content) {
         if (kw && !bookMatch && entries.length === 0) continue;
 
         const checkedCount = book.entries.filter(e => e.checked).length;
+        // 有勾选条目的书默认展开,避免误以为勾选丢失
+        if (book.open === undefined) book.open = checkedCount > 0;
         const $book = $(`<div class="wi-book${book.open ? ' open' : ''}"></div>`);
         const $head = $(`
             <div class="wi-book-head">
