@@ -18,10 +18,11 @@ const MODULE_NAME = 'stc_chat_options';
 const LOG_PREFIX = '[STC Chat Options]';
 const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 // 模板版本号:更新 settings.html 后递增,绕开浏览器缓存
-const TEMPLATE_VERSION = '8';
+const TEMPLATE_VERSION = '9';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
-const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
+const DEFAULT_GEN_PROMPT = `{{worldinfo}}
+你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
 
 要求:
 - 以用户的第一人称视角撰写,简短自然,每条不超过 25 个字
@@ -45,6 +46,10 @@ const defaultSettings = {
         count: 4,      // 每次生成的选项数量
         regex: '',     // 提取正则:从最新 AI 发言中抽取匹配内容发送,留空发送原文
         prompt: DEFAULT_GEN_PROMPT,
+    },
+    // 世界书:勾选的条目内容会附带进生成选项的提示词
+    wi: {
+        selections: {},   // { [世界书文件名]: [条目 uid, ...] }
     },
     // 扩展自身 AI 调用使用的接口
     api: {
@@ -91,6 +96,8 @@ function initSettings() {
     for (const key of Object.keys(defaults.gen)) {
         if (stored.gen[key] === undefined) stored.gen[key] = defaults.gen[key];
     }
+    if (typeof stored.wi !== 'object' || stored.wi === null) stored.wi = defaults.wi;
+    if (typeof stored.wi.selections !== 'object' || stored.wi.selections === null) stored.wi.selections = {};
     if (typeof stored.api !== 'object' || stored.api === null) stored.api = defaults.api;
     for (const key of Object.keys(defaults.api)) {
         if (stored.api[key] === undefined) stored.api[key] = defaults.api[key];
@@ -207,12 +214,13 @@ function clampInt(value, min, max, fallback) {
 function extractContent() {
     const chat = getContext().chat;
     if (!Array.isArray(chat)) return '';
-    // 只取最新一条 AI 发言的原文(跳过用户消息与系统消息)
+    // 只取最新一条真实 AI 发言的原文;跳过用户消息、系统消息与系统注入的 HTML 提示(如欢迎语、/help 输出)
     for (let i = chat.length - 1; i >= 0; i--) {
         const m = chat[i];
-        if (m && !m.is_user && !m.is_system && typeof m.mes === 'string' && m.mes.trim()) {
-            return m.mes.trim();
-        }
+        if (!m || m.is_user || m.is_system) continue;
+        if (typeof m.mes !== 'string' || !m.mes.trim()) continue;
+        if (m.name === 'SillyTavern System' || /^\s*<(div|button|span)\b/i.test(m.mes)) continue;
+        return m.mes.trim();
     }
     return '';
 }
@@ -301,9 +309,20 @@ async function generateOptions({ manual = false } = {}) {
         const count = clampInt(settings.gen.count, 1, 8, 4);
         const content = applyContentRegex(extractContent(), settings.gen.regex);
         if (!content) throw new Error('没有可用的对话内容');
-        const prompt = String(settings.gen.prompt || DEFAULT_GEN_PROMPT)
-            .replaceAll('{{count}}', String(count))
-            .replaceAll('{{content}}', content);
+        // 勾选的世界书条目:生成选项时附带进提示词(不影响酒馆主对话)
+        if (Object.keys(settings.wi.selections).length) {
+            await ensureWorldBooks();
+        }
+        const worldInfo = buildWorldInfoContent();
+        const templateText = String(settings.gen.prompt || DEFAULT_GEN_PROMPT);
+        const hasWorldInfoPlaceholder = templateText.includes('{{worldinfo}}');
+        let prompt = templateText
+            .replaceAll('{{worldinfo}}', () => worldInfo)
+            .replaceAll('{{count}}', () => String(count))
+            .replaceAll('{{content}}', () => content);
+        if (!hasWorldInfoPlaceholder && worldInfo) {
+            prompt = `${worldInfo}\n\n${prompt}`;
+        }
         const reply = await generateWithConfig(prompt, {
             systemPrompt: '你是选项生成器,只输出 JSON 数组。',
             maxTokens: 400,
@@ -321,6 +340,78 @@ async function generateOptions({ manual = false } = {}) {
         generating = false;
         renderBar();
     }
+}
+
+// ── 世界书 ───────────────────────────────────────────────────
+
+let wiCache = [];        // 已加载的世界书数据(含勾选状态)
+let wiLoadedOnce = false;
+
+function esc(text) {
+    return String(text).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+// 从酒馆后端拉取全部世界书,并按已保存的勾选恢复状态
+async function loadWorldBooks() {
+    const headers = await getCsrfHeaders();
+    const list = await fetch('/api/worldinfo/list', { method: 'POST', headers })
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+
+    const books = [];
+    for (const item of list) {
+        try {
+            const book = await fetch('/api/worldinfo/get', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ name: item.file_id }),
+            }).then(r => (r.ok ? r.json() : null));
+            if (!book || !book.entries) continue;
+
+            const saved = Array.isArray(settings.wi.selections[item.file_id])
+                ? settings.wi.selections[item.file_id]
+                : [];
+            const entries = Object.values(book.entries)
+                .filter(e => e && !e.disable)
+                .map(e => {
+                    const keys = Array.isArray(e.key) ? e.key.join(', ') : String(e.key ?? '');
+                    return {
+                        uid: e.uid,
+                        title: String(e.comment ?? '').trim() || keys || `条目 ${e.uid}`,
+                        keys,
+                        content: String(e.content ?? ''),
+                        constant: !!e.constant,
+                        checked: saved.includes(e.uid),
+                    };
+                });
+            books.push({ id: item.file_id, name: String(book.name || item.name || item.file_id), entries });
+        } catch { /* 单本加载失败,跳过 */ }
+    }
+    wiCache = books;
+    wiLoadedOnce = true;
+}
+
+// 按需加载(生成选项时若从未打开过设置面板,也会应用已保存的勾选)
+async function ensureWorldBooks() {
+    if (wiLoadedOnce) return;
+    try {
+        await loadWorldBooks();
+    } catch (e) {
+        console.warn(LOG_PREFIX, '世界书加载失败:', e);
+    }
+}
+
+// 把勾选条目的内容拼成附加提示词
+function buildWorldInfoContent() {
+    const lines = [];
+    for (const b of wiCache) {
+        const checked = b.entries.filter(e => e.checked && e.content.trim());
+        if (!checked.length) continue;
+        lines.push(`【${b.name}】`);
+        for (const e of checked) {
+            lines.push(`- ${e.title ? e.title + ': ' : ''}${e.content.trim()}`);
+        }
+    }
+    return lines.length ? `【世界书设定】\n${lines.join('\n')}` : '';
 }
 
 // ── 聊天末尾选项框 ────────────────────────────────────────────
@@ -485,7 +576,135 @@ async function openSettingsPopup() {
     });
 }
 
+// 渲染设置面板里的世界书列表
+function renderWiList($content) {
+    const $wrap = $content.find('#stc-wi-books');
+    if (!$wrap.length) return;
+    const kw = String($content.find('#stc-wi-search').val() ?? '').trim().toLowerCase();
+    $wrap.empty();
+
+    if (!wiCache.length) {
+        $wrap.append('<div class="wi-empty">没有找到任何世界书</div>');
+        updateWiSummary($content);
+        return;
+    }
+
+    for (const book of wiCache) {
+        const bookMatch = !kw || book.name.toLowerCase().includes(kw);
+        const entries = book.entries.filter(e =>
+            bookMatch || !kw ||
+            e.title.toLowerCase().includes(kw) || e.keys.toLowerCase().includes(kw) || e.content.toLowerCase().includes(kw));
+        if (kw && !bookMatch && entries.length === 0) continue;
+
+        const checkedCount = book.entries.filter(e => e.checked).length;
+        const $book = $(`<div class="wi-book${book.open ? ' open' : ''}"></div>`);
+        const $head = $(`
+            <div class="wi-book-head">
+                <label class="checkbox_label">
+                    <input type="checkbox" class="wi-book-check" />
+                    <span><i class="fa-solid fa-book"></i> ${esc(book.name)}</span>
+                </label>
+                <span class="wi-book-meta">${book.entries.length} 条 · ${checkedCount} 已选</span>
+                <i class="fa-solid fa-chevron-down wi-toggle"></i>
+            </div>`);
+        const $check = $head.find('.wi-book-check');
+        $check.prop('checked', checkedCount === book.entries.length && book.entries.length > 0);
+        $check.prop('indeterminate', checkedCount > 0 && checkedCount < book.entries.length);
+
+        const $box = $('<div class="wi-entries"></div>');
+        for (const e of entries) {
+            const $row = $(`
+                <label class="wi-entry${e.checked ? ' checked' : ''}">
+                    <input type="checkbox" ${e.checked ? 'checked' : ''} />
+                    <span class="wi-entry-title">${esc(e.title)}</span>
+                    <span class="wi-badge ${e.constant ? 'blue' : 'green'}">${e.constant ? '常驻' : '关键词'}</span>
+                    ${e.keys ? `<span class="wi-keys"><i class="fa-solid fa-key"></i> ${esc(e.keys)}</span>` : ''}
+                    <span class="wi-preview">${esc(e.content)}</span>
+                </label>`);
+            $row.find('input').on('change', function () {
+                e.checked = $(this).prop('checked');
+                $row.toggleClass('checked', e.checked);
+                saveWiSelections();
+                // 更新书级勾选状态(全选/半选)
+                const total = book.entries.length;
+                const c = book.entries.filter(x => x.checked).length;
+                $check.prop('checked', c === total);
+                $check.prop('indeterminate', c > 0 && c < total);
+                $head.find('.wi-book-meta').text(`${total} 条 · ${c} 已选`);
+                updateWiSummary($content);
+            });
+            $box.append($row);
+        }
+
+        $check.on('change', function () {
+            const checked = $(this).prop('checked');
+            book.entries.forEach(e => e.checked = checked);
+            saveWiSelections();
+            renderWiList($content);
+        });
+        $head.on('click', function (ev) {
+            if ($(ev.target).closest('.checkbox_label').length) return;
+            book.open = !book.open;
+            $book.toggleClass('open', book.open);
+        });
+
+        $book.append($head);
+        $book.append($box);
+        $wrap.append($book);
+    }
+    updateWiSummary($content);
+}
+
+function updateWiSummary($content) {
+    let books = 0, entries = 0;
+    for (const b of wiCache) {
+        const c = b.entries.filter(e => e.checked).length;
+        if (c > 0) { books++; entries += c; }
+    }
+    $content.find('#stc-wi-summary').html(entries === 0
+        ? '未勾选任何条目 — 生成选项的提示词不含世界书内容,其余照常'
+        : `已选 <b>${books}</b> 本世界书 · <b>${entries}</b> 个条目,生成选项时将附带这些设定`);
+}
+
+function saveWiSelections() {
+    const selections = {};
+    for (const b of wiCache) {
+        const uids = b.entries.filter(e => e.checked).map(e => e.uid);
+        if (uids.length) selections[b.id] = uids;
+    }
+    settings.wi.selections = selections;
+    persist();
+}
+
 function wireSettingsContent($content) {
+    // ── 世界书 ──
+    const wireWi = () => {
+        renderWiList($content);
+        loadWorldBooks()
+            .then(() => renderWiList($content))
+            .catch(e => {
+                console.error(LOG_PREFIX, '世界书加载失败:', e);
+                $content.find('#stc-wi-books').html(`<div class="wi-empty">加载失败:${esc(e.message)}</div>`);
+            });
+    };
+    wireWi();
+    $content.find('#stc-wi-search').on('input', () => renderWiList($content));
+    $content.find('#stc-wi-refresh').on('click', async function () {
+        const btn = this;
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        try {
+            await loadWorldBooks();
+            renderWiList($content);
+        } catch (e) {
+            toastr.error(`世界书加载失败:${e.message}`);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    });
+
     // ── 总开关 ──
     $content.find('#stc-co-enabled')
         .prop('checked', settings.enabled)
