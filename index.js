@@ -18,7 +18,7 @@ const MODULE_NAME = 'stc_chat_options';
 const LOG_PREFIX = '[STC Chat Options]';
 const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 // 模板版本号:更新 settings.html 后递增,绕开浏览器缓存
-const TEMPLATE_VERSION = '5';
+const TEMPLATE_VERSION = '6';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
 const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面对话的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
@@ -159,49 +159,23 @@ async function generateViaCustomApi(prompt, systemPrompt, maxTokens) {
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: prompt });
 
-    const upstreamPayload = {
-        model,
-        messages,
-        temperature: 0.8,
-        stream: false,
-        ...(maxTokens ? { max_tokens: maxTokens } : {}),
-    };
-
-    // 优先经本站后端转发(SillyTavernchat MOD 提供,服务器对服务器直连,不受浏览器 CORS 限制);
-    // 后端无此转发端点时(如原版酒馆部署)自动回退为浏览器直连,此时需接口支持跨域。
-    let resp;
-    try {
-        resp = await fetch('/api/stc/ai-proxy', {
-            method: 'POST',
-            headers: await getCsrfHeaders(),
-            body: JSON.stringify({
-                url,
-                key,
-                model,
-                messages,
-                temperature: 0.8,
-                stream: false,
-                ...(maxTokens ? { maxTokens } : {}),
-            }),
-        });
-        if (resp.status === 404) {
-            const err = new Error('proxy unavailable');
-            err.code = 'PROXY_UNAVAILABLE';
-            throw err;
-        }
-    } catch (e) {
-        if (e?.code !== 'PROXY_UNAVAILABLE') {
-            throw new Error(`后端转发请求失败:${e.message}`);
-        }
-        resp = await fetch(url.replace(/\/+$/, '') + '/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(key ? { Authorization: `Bearer ${key}` } : {}),
-            },
-            body: JSON.stringify(upstreamPayload),
-        });
-    }
+    // 走酒馆原生后端端点(与连接设置里「自定义(兼容 OpenAI)」来源同款架构):
+    // 浏览器 → 酒馆后端 → 自定义接口,服务器对服务器转发,不受浏览器跨域限制,
+    // 原版酒馆即自带此端点,任何部署都可用,无需额外后端支持。
+    const resp = await fetch('/api/backends/chat-completions/generate', {
+        method: 'POST',
+        headers: await getCsrfHeaders(),
+        body: JSON.stringify({
+            chat_completion_source: 'custom',
+            custom_url: url,
+            model,
+            messages,
+            temperature: 0.8,
+            stream: false,
+            ...(maxTokens ? { max_tokens: maxTokens } : {}),
+            custom_include_headers: key ? { Authorization: `Bearer ${key}` } : {},
+        }),
+    });
 
     if (!resp.ok) {
         let detail = `HTTP ${resp.status}`;
