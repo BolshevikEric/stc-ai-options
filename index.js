@@ -259,17 +259,20 @@ function applyContentRegex(text, pattern) {
 }
 
 /**
- * {{char}}/{{user}} 占位符替换:取值走酒馆原生宏引擎(substituteParams),
- * 解析为空时回退「角色」/「用户」。只用于生成指令模板与世界书条目内容,
- * {{content}}(最新剧情原文)不做替换,避免剧情里引用的字面占位符被误改。
+ * 角色/用户占位符替换:支持 {{char}}/{{user}} 与 <char>/<user>(酒馆原生两种形态),
+ * 取值走酒馆原生宏引擎(substituteParams),解析为空时回退「角色」/「用户」。
+ * 只用于生成指令模板与世界书条目内容,{{content}}(最新剧情原文)不做替换,
+ * 避免剧情里引用的字面占位符被误改。
  */
 function applyCharUserMacros(text) {
     let str = String(text ?? '');
-    if (!str.includes('{{')) return str;
+    if (!str.includes('{{') && !/<(char|user)>/i.test(str)) return str;
     const char = String(substituteParams('{{char}}') ?? '').trim() || '角色';
     const user = String(substituteParams('{{user}}') ?? '').trim() || '用户';
     str = str.replace(/\{\{\s*char\s*\}\}/gi, () => char);
     str = str.replace(/\{\{\s*user\s*\}\}/gi, () => user);
+    str = str.replace(/<char>/gi, () => char);
+    str = str.replace(/<user>/gi, () => user);
     return str;
 }
 
