@@ -1,5 +1,5 @@
 // STC Chat Options - AI 生成的聊天选项框 + 魔法棒菜单设置
-// 流程:提取最近对话正文 → 发送给 AI(主 API 或自定义 OpenAI 兼容接口)→ 解析选项 → 渲染编号卡片列表
+// 流程:提取最新一条 AI 发言 → 发送给 AI(主 API 或自定义 OpenAI 兼容接口)→ 解析选项 → 渲染编号卡片列表
 // 点击选项填充输入框(不自动发送);破限词以系统提示词注入到生成提示词顶部。
 
 import { getContext, extension_settings } from '../../../extensions.js';
@@ -18,17 +18,17 @@ const MODULE_NAME = 'stc_chat_options';
 const LOG_PREFIX = '[STC Chat Options]';
 const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 // 模板版本号:更新 settings.html 后递增,绕开浏览器缓存
-const TEMPLATE_VERSION = '6';
+const TEMPLATE_VERSION = '7';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
-const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面对话的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
+const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
 
 要求:
 - 以用户的第一人称视角撰写,简短自然,每条不超过 25 个字
 - 选项之间要有明显不同的方向和意图,贴合当前剧情与人物关系
 - 只输出一个 JSON 数组,格式严格为: ["选项一","选项二"],不要输出解释、序号或其他任何内容
 
-对话正文:
+最新剧情:
 {{content}}`;
 
 const defaultSettings = {
@@ -43,7 +43,6 @@ const defaultSettings = {
     // 选项生成参数
     gen: {
         count: 4,      // 每次生成的选项数量
-        range: 10,     // 提取最近消息条数
         prompt: DEFAULT_GEN_PROMPT,
     },
     // 扩展自身 AI 调用使用的接口
@@ -181,7 +180,10 @@ async function generateViaCustomApi(prompt, systemPrompt, maxTokens) {
         let detail = `HTTP ${resp.status}`;
         try {
             const body = await resp.json();
-            if (body?.error) detail = body.error;
+            if (body?.error) {
+                const e = body.error;
+                detail = typeof e === 'string' ? e : (e?.message || JSON.stringify(e));
+            }
         } catch { /* 非 JSON 响应,保留状态码 */ }
         throw new Error(String(detail).slice(0, 200));
     }
@@ -201,15 +203,17 @@ function clampInt(value, min, max, fallback) {
     return Math.min(max, Math.max(min, n));
 }
 
-function extractContent(range) {
-    const context = getContext();
-    const chat = Array.isArray(context.chat) ? context.chat : [];
-    const picked = chat
-        .filter(m => m && typeof m.mes === 'string' && m.mes && !m.is_system)
-        .slice(-clampInt(range, 1, 40, 10));
-    return picked
-        .map(m => `${m.name || (m.is_user ? '用户' : '角色')}: ${m.mes.replace(/\s+/g, ' ').trim()}`.slice(0, 600))
-        .join('\n');
+function extractContent() {
+    const chat = getContext().chat;
+    if (!Array.isArray(chat)) return '';
+    // 只取最新一条 AI 发言的原文(跳过用户消息与系统消息)
+    for (let i = chat.length - 1; i >= 0; i--) {
+        const m = chat[i];
+        if (m && !m.is_user && !m.is_system && typeof m.mes === 'string' && m.mes.trim()) {
+            return m.mes.trim();
+        }
+    }
+    return '';
 }
 
 function parseOptions(reply, count) {
@@ -261,7 +265,7 @@ async function generateOptions({ manual = false } = {}) {
 
     try {
         const count = clampInt(settings.gen.count, 1, 8, 4);
-        const content = extractContent(settings.gen.range);
+        const content = extractContent();
         if (!content) throw new Error('没有可用的对话内容');
         const prompt = String(settings.gen.prompt || DEFAULT_GEN_PROMPT)
             .replaceAll('{{count}}', String(count))
@@ -480,13 +484,6 @@ function wireSettingsContent($content) {
     $count.val(settings.gen.count).on('change', function () {
         settings.gen.count = clampInt($(this).val(), 1, 8, 4);
         $(this).val(settings.gen.count);
-        persist();
-    });
-
-    const $range = $content.find('#stc-co-gen-range');
-    $range.val(settings.gen.range).on('change', function () {
-        settings.gen.range = clampInt($(this).val(), 1, 40, 10);
-        $(this).val(settings.gen.range);
         persist();
     });
 

@@ -16,7 +16,6 @@
             <i class="fa-solid fa-wand-magic-sparkles"></i>
             <span>AI 选项生成</span>
         </div>
-        <div class="stc-co-hint">提取最近对话正文发送给 AI,生成下一步行动选项并渲染到聊天末尾(使用下方「AI API」设置的接口)。</div>
         <label class="checkbox_label" for="stc-co-auto">
             <input id="stc-co-auto" type="checkbox" />
             <span>AI 回复后自动生成选项</span>
@@ -25,11 +24,6 @@
             <span>生成数量(1–8)</span>
             <input id="stc-co-gen-count" class="text_pole" type="number" min="1" max="8" step="1" />
         </div>
-        <div class="stc-co-field-row">
-            <span>提取最近消息条数(1–40)</span>
-            <input id="stc-co-gen-range" class="text_pole" type="number" min="1" max="40" step="1" />
-        </div>
-        <div class="stc-co-hint">生成指令模板,占位符:&#123;&#123;count&#125;&#125; = 生成数量,&#123;&#123;content&#125;&#125; = 对话正文</div>
         <textarea id="stc-co-gen-prompt" class="text_pole stc-co-gen-prompt" rows="9" placeholder="生成指令模板"></textarea>
     </div>
 
@@ -38,7 +32,6 @@
             <i class="fa-solid fa-palette"></i>
             <span>插件主题</span>
         </div>
-        <div class="stc-co-hint">仅控制本插件选项框的外观,<strong>不会改动酒馆本身的 UI 主题</strong>。要改酒馆主题请用左侧用户设置里的「UI 主题」。</div>
         <select id="stc-co-ui-theme" class="text_pole">
             <option value="auto">跟随酒馆主题</option>
             <option value="dark">深色</option>
@@ -51,7 +44,6 @@
             <i class="fa-solid fa-plug"></i>
             <span>AI API(扩展自身调用)</span>
         </div>
-        <div class="stc-co-hint">选项生成等扩展内部请求使用的接口,与酒馆主生成互不影响。默认跟随酒馆主 API;自定义模式适用于 OpenAI 兼容接口,请求经酒馆原生后端端点转发,不受浏览器跨域限制,任何部署可用。</div>
         <div class="stc-co-radio-row">
             <label class="checkbox_label">
                 <input type="radio" name="stc-co-api-mode" value="main" />
@@ -84,7 +76,6 @@
             <input id="stc-co-jb-enabled" type="checkbox" />
             <span>启用破限词注入</span>
         </label>
-        <div class="stc-co-hint">启用后,以下内容将作为系统提示词注入到每次生成的提示词顶部,不会写入聊天记录,也不影响酒馆本身的预设。</div>
         <textarea id="stc-co-jb-text" class="text_pole stc-co-jb-text" rows="6" placeholder="输入破限词内容…"></textarea>
         <div class="stc-co-depth-row">
             <span>注入深度(越大越靠顶部,默认 999)</span>

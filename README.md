@@ -13,7 +13,7 @@
   - 解析健壮性:优先解析 JSON 数组,失败后自动降级为按行解析
 - **AI API**:默认跟随酒馆主 API;也可配置自定义 OpenAI 兼容接口(地址 / Key / 模型名),带「测试连接」按钮
   - 在 SillyTavernchat MOD 环境下,自定义请求自动经后端转发,不受浏览器跨域(CORS)限制
-  - 在原版酒馆等其他环境,自动回退为浏览器直连(需接口支持 CORS)
+  - 请求经酒馆原生后端端点(`/api/backends/chat-completions/generate`)转发,不受浏览器跨域(CORS)限制,任何 SillyTavern 部署可用
 - **插件主题**:选项框外观可切换(跟随酒馆 / 深色 / 浅色),只作用于本插件,不改动酒馆的 UI 主题
 - **破限词注入**:可选将自定义文本以系统提示词角色注入到每次主生成的提示词顶部(基于 `setExtensionPrompt`,不写入聊天记录、不改预设),深度可调
 - **响应式布局**:适配 PC 与手机端
@@ -60,7 +60,7 @@ git clone https://github.com/BolshevikEric/stc-ai-options
 ## 兼容性说明
 
 - 基于 SillyTavern 1.18.0 开发,使用官方扩展 API(`getContext`、`setExtensionPrompt`、`eventSource` 等)
-- 自定义 API 的浏览器直连模式需要目标接口支持 CORS;SillyTavernchat MOD 用户无此限制(自动走后端转发)
+- 自定义 API 经酒馆后端转发,无浏览器跨域限制
 
 ## 开发
 
