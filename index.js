@@ -198,11 +198,17 @@ async function generateViaCustomApi(prompt, systemPrompt, maxTokens) {
         throw new Error(String(detail).slice(0, 200));
     }
     const data = await resp.json();
-    const content = data?.choices?.[0]?.message?.content;
+    const msg = data?.choices?.[0]?.message ?? {};
+    const content = String(msg.content ?? '').trim();
     if (!content) {
+        // 推理模型的思考 token 计入 max_tokens,预算被思考占满时正文会是空串
+        const reasoning = String(msg.reasoning_content ?? msg.reasoning ?? '').trim();
+        if (reasoning) {
+            throw new Error(`模型只输出了思考内容、正文为空:思考过程占满了 ${maxTokens ?? '默认'} token 上限,请调高 token 限制或关闭思考模式`);
+        }
         throw new Error('响应中没有返回内容');
     }
-    return String(content).trim();
+    return content;
 }
 
 // ── AI 选项生成 ───────────────────────────────────────────────
@@ -356,7 +362,7 @@ async function generateOptions({ manual = false } = {}) {
         }
         const reply = await generateWithConfig(prompt, {
             systemPrompt: '你是选项生成器,只输出 JSON 数组。',
-            maxTokens: 400,
+            maxTokens: 1024,
         });
         const list = parseOptions(reply, count);
         if (!list.length) throw new Error('AI 未返回有效选项,请调整生成指令后重试');
@@ -879,7 +885,8 @@ function wireSettingsContent($content) {
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 测试中…';
         try {
-            const reply = await generateWithConfig('这是一次连接测试。请只回复两个字符:成功', { maxTokens: 20 });
+            // 预算放宽:推理模型的思考 token 也计入 max_tokens,过小会导致正文被截成空串
+            const reply = await generateWithConfig('这是一次连接测试。请只回复两个字符:成功', { maxTokens: 2048 });
             toastr.success(`连接成功,模型返回:${reply.slice(0, 60)}`);
         } catch (e) {
             console.error(LOG_PREFIX, 'API test failed:', e);
