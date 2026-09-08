@@ -72,6 +72,8 @@ let lastOptions = [];   // 当前渲染的 AI 生成选项
 let lastError = null;   // 最近一次生成失败的错误信息
 let generating = false; // 是否正在生成
 let lastGenSig = '';    // 上次生成选项时"最后一条消息"的签名,防止重复/自触发
+let lastDirection = ''; // 用户设置的生成方向(会话内有效,空=不限定)
+let dirEditing = false; // 方向输入行是否展开
 
 // ── 设置初始化 ────────────────────────────────────────────────
 
@@ -320,6 +322,7 @@ async function generateOptions({ manual = false } = {}) {
 
     generating = true;
     lastError = null;
+    dirEditing = false;
     renderBar();
 
     try {
@@ -334,6 +337,14 @@ async function generateOptions({ manual = false } = {}) {
         let prompt = applyNativeMacros(String(settings.gen.prompt || DEFAULT_GEN_PROMPT))
             .replaceAll('{{count}}', () => String(count))
             .replaceAll('{{content}}', () => content);
+        // 生成方向:模板写了 {{direction}} 就就地替换,没写则追加到指令末尾;方向文本不做宏替换
+        const direction = String(lastDirection ?? '').trim();
+        if (direction) {
+            prompt = prompt.replaceAll('{{direction}}', () => direction);
+            if (!String(settings.gen.prompt || DEFAULT_GEN_PROMPT).includes('{{direction}}')) {
+                prompt = `${prompt}\n\n请围绕以下方向生成选项:${direction}`;
+            }
+        }
         // 世界书设定注入到正文末尾(条目内容同样做原生占位符替换)
         if (worldInfo) {
             prompt = `${prompt}\n\n${applyNativeMacros(worldInfo)}`;
@@ -477,6 +488,56 @@ function makeIconRow(className, iconClass, text) {
     return row;
 }
 
+// 「生成方向」按钮:与主按钮并排(占 12% 宽),点击展开/收起内嵌输入行;已设方向时高亮
+function makeDirButton() {
+    const row = makeIconRow('stc-co-dir' + (lastDirection ? ' stc-co-dir-active' : ''), 'fa-solid fa-compass', '生成方向');
+    row.querySelector('span').className = 'stc-co-dir-text';
+    row.title = lastDirection ? `当前方向:${lastDirection}(点击修改)` : '设置本次生成选项的方向';
+    row.addEventListener('click', () => { dirEditing = !dirEditing; renderBar(); });
+    return row;
+}
+
+// 内嵌方向输入行:预填当前方向,回车/✓ 确认,Esc/✕ 取消
+function buildDirInputRow() {
+    const row = makeRow('stc-co-dir-row');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'stc-co-dir-input';
+    input.maxLength = 200;
+    input.value = lastDirection;
+    input.placeholder = '输入生成方向,如:往悬疑方向…(留空清除)';
+    const ok = document.createElement('div');
+    ok.className = 'stc-co-dir-act stc-co-dir-ok';
+    ok.title = '确认:保存方向并立即生成';
+    ok.innerHTML = '<i class="fa-solid fa-check"></i>';
+    const cancel = document.createElement('div');
+    cancel.className = 'stc-co-dir-act stc-co-dir-cancel';
+    cancel.title = '取消';
+    cancel.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+    ok.addEventListener('click', () => confirmDirection(input.value));
+    cancel.addEventListener('click', () => { dirEditing = false; renderBar(); });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); confirmDirection(input.value); }
+        else if (e.key === 'Escape') { dirEditing = false; renderBar(); }
+    });
+    row.appendChild(input);
+    row.appendChild(ok);
+    row.appendChild(cancel);
+    requestAnimationFrame(() => input.focus());
+    return row;
+}
+
+// 确认方向:非空则保存并立即生成;留空仅清除方向
+function confirmDirection(value) {
+    lastDirection = String(value ?? '').trim();
+    dirEditing = false;
+    renderBar();
+    if (lastDirection) {
+        toastr.success(`生成方向已设置:${lastDirection}`);
+        generateOptions({ manual: true });
+    }
+}
+
 function buildOptionRow(seq, text) {
     const btn = makeRow('stc-co-btn');
     btn.title = text;
@@ -518,26 +579,38 @@ function renderBar() {
 
     if (!lastOptions.length && lastError) {
         bar.style.display = '';
+        const pair = makeRow('stc-co-pair');
         const row = makeIconRow('stc-co-state stc-co-error', 'fa-solid fa-triangle-exclamation', `生成失败:${lastError},点击重试`);
         row.addEventListener('click', () => generateOptions({ manual: true }));
-        bar.appendChild(row);
+        pair.appendChild(row);
+        pair.appendChild(makeDirButton());
+        bar.appendChild(pair);
+        if (dirEditing) bar.appendChild(buildDirInputRow());
         return;
     }
 
     if (!lastOptions.length) {
-        // 尚未生成过:显示一个入口按钮
+        // 尚未生成过:显示一个入口按钮 + 生成方向按钮
         bar.style.display = '';
+        const pair = makeRow('stc-co-pair');
         const row = makeIconRow('stc-co-state stc-co-entry', 'fa-solid fa-wand-magic-sparkles', '生成选项');
         row.addEventListener('click', () => generateOptions({ manual: true }));
-        bar.appendChild(row);
+        pair.appendChild(row);
+        pair.appendChild(makeDirButton());
+        bar.appendChild(pair);
+        if (dirEditing) bar.appendChild(buildDirInputRow());
         return;
     }
 
     bar.style.display = '';
     lastOptions.forEach((text, idx) => bar.appendChild(buildOptionRow(idx + 1, text)));
+    const pair = makeRow('stc-co-pair');
     const refresh = makeIconRow('stc-co-refresh', 'fa-solid fa-rotate-right', '换一批');
     refresh.addEventListener('click', () => generateOptions({ manual: true }));
-    bar.appendChild(refresh);
+    pair.appendChild(refresh);
+    pair.appendChild(makeDirButton());
+    bar.appendChild(pair);
+    if (dirEditing) bar.appendChild(buildDirInputRow());
 }
 
 function fillInput(text) {

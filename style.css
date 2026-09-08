@@ -130,19 +130,143 @@
     opacity: 1;
 }
 
+/* 并排容器:主按钮 88% + 生成方向按钮 12% */
+#stc-chat-options-bar .stc-co-pair {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+}
+
+#stc-chat-options-bar .stc-co-pair > .stc-co-state,
+#stc-chat-options-bar .stc-co-pair > .stc-co-refresh {
+    flex: 88 1 0;
+    min-width: 0;
+}
+
+#stc-chat-options-bar .stc-co-pair > .stc-co-dir {
+    flex: 12 1 0;
+    min-width: 0;
+}
+
+/* 生成方向按钮 */
+#stc-chat-options-bar .stc-co-dir {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 32px;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    border-radius: 9px;
+    font-size: 0.72em;
+    opacity: 0.85;
+    color: var(--stc-fg);
+    background: var(--stc-bg);
+    border: 1px dashed var(--stc-border);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    transition: border-color 0.15s ease, filter 0.15s ease;
+}
+
+#stc-chat-options-bar .stc-co-dir:hover {
+    border-color: var(--stc-hover);
+    filter: brightness(1.08);
+    opacity: 1;
+}
+
+/* 已设置方向时高亮 */
+#stc-chat-options-bar .stc-co-dir-active {
+    border-style: solid;
+    border-color: var(--stc-hover);
+    opacity: 1;
+}
+
+#stc-chat-options-bar .stc-co-dir .stc-co-dir-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 内嵌方向输入行 */
+#stc-chat-options-bar .stc-co-dir-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    border-radius: 9px;
+    background: var(--stc-bg);
+    border: 1px solid var(--stc-border);
+}
+
+#stc-chat-options-bar .stc-co-dir-input {
+    flex: 1;
+    min-width: 0;
+    box-sizing: border-box;
+    background: var(--stc-num-bg);
+    color: var(--stc-fg);
+    border: 1px solid var(--stc-border);
+    border-radius: 7px;
+    padding: 5px 9px;
+    font-size: 0.8em;
+    font-family: inherit;
+    outline: none;
+}
+
+#stc-chat-options-bar .stc-co-dir-input:focus {
+    border-color: var(--stc-hover);
+}
+
+#stc-chat-options-bar .stc-co-dir-input::placeholder {
+    color: var(--stc-fg);
+    opacity: 0.35;
+}
+
+#stc-chat-options-bar .stc-co-dir-act {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--stc-num-bg);
+    color: var(--stc-fg);
+    border: 1px solid var(--stc-border);
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.85em;
+}
+
+#stc-chat-options-bar .stc-co-dir-act:hover {
+    border-color: var(--stc-hover);
+    filter: brightness(1.1);
+}
+
+#stc-chat-options-bar .stc-co-dir-ok {
+    color: #58d68d;
+}
+
+#stc-chat-options-bar .stc-co-dir-cancel {
+    color: var(--stc-danger);
+}
+
 /* 换一批 */
 #stc-chat-options-bar .stc-co-refresh {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 4px 8px;
-    border-radius: 8px;
+    padding: 6px 8px;
+    border-radius: 9px;
     font-size: 0.72em;
     opacity: 0.5;
     cursor: pointer;
     user-select: none;
     color: var(--stc-fg);
+    background: var(--stc-bg);
+    border: 1px dashed transparent;
     transition: opacity 0.15s ease;
 }
 
@@ -293,6 +417,35 @@
 
     #stc-chat-options-bar .stc-co-main {
         font-size: 0.84em;
+    }
+
+    #stc-chat-options-bar .stc-co-pair > .stc-co-state,
+    #stc-chat-options-bar .stc-co-pair > .stc-co-refresh {
+        min-height: 40px;
+    }
+
+    #stc-chat-options-bar .stc-co-pair > .stc-co-dir {
+        min-height: 40px;
+        padding: 6px;
+    }
+
+    /* 窄屏下方向按钮只留图标 */
+    #stc-chat-options-bar .stc-co-dir .stc-co-dir-text {
+        display: none;
+    }
+
+    #stc-chat-options-bar .stc-co-dir-row {
+        padding: 5px 6px;
+    }
+
+    #stc-chat-options-bar .stc-co-dir-input {
+        min-height: 34px;
+        font-size: 0.9em;
+    }
+
+    #stc-chat-options-bar .stc-co-dir-act {
+        width: 36px;
+        height: 36px;
     }
 }
 
