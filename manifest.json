@@ -3,9 +3,9 @@
     "loading_order": 100,
     "requires": [],
     "optional": [],
-    "js": "index.js?v=15",
-    "css": "style.css?v=15",
+    "js": "index.js?v=16",
+    "css": "style.css?v=16",
     "author": "BolshevikEric",
-    "version": "0.4.4",
+    "version": "0.4.5",
     "homePage": "https://github.com/BolshevikEric/stc-ai-options"
 }
