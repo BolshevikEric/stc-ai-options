@@ -19,7 +19,7 @@ const MODULE_NAME = 'stc_chat_options';
 const LOG_PREFIX = '[STC Chat Options]';
 const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 // 模板版本号:更新 settings.html 后递增,绕开浏览器缓存
-const TEMPLATE_VERSION = '14';
+const TEMPLATE_VERSION = '15';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
 const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
@@ -451,7 +451,8 @@ async function generateOptions({ manual = false } = {}) {
         }
         const reply = await generateWithConfig(prompt, {
             systemPrompt: '你是选项生成器,只输出 JSON 数组。',
-            maxTokens: 1024,
+            // 推理模型的思考 token 计入 max_tokens,预算过小会占满导致正文为空
+            maxTokens: 8192,
         });
         const list = parseOptions(reply, count);
         if (!list.length) throw new Error('AI 未返回有效选项,请调整生成指令后重试');
@@ -999,7 +1000,7 @@ function wireSettingsContent($content) {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 测试中…';
         try {
             // 预算放宽:推理模型的思考 token 也计入 max_tokens,过小会导致正文被截成空串
-            const reply = await generateWithConfig('这是一次连接测试。请只回复两个字符:成功', { maxTokens: 2048 });
+            const reply = await generateWithConfig('这是一次连接测试。请只回复两个字符:成功', { maxTokens: 8192 });
             toastr.success(`连接成功,模型返回:${reply.slice(0, 60)}`);
         } catch (e) {
             console.error(LOG_PREFIX, 'API test failed:', e);
