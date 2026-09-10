@@ -341,26 +341,29 @@ function tryParseJsonArray(raw) {
     return null;
 }
 
-/** 去掉选项两侧包裹引号/列表残留(多轮,兼容中英文引号与转义引号)。 */
+/**
+ * 去掉选项两侧的 JSON/列表残留包裹。
+ * 只处理 ASCII 引号与尾随逗号;不剥中文引号「“”『』」——那是台词标点,剥了会缺字。
+ */
 function cleanOptionText(raw) {
-    let x = String(raw ?? '');
-    // JSON 字符串本身(带转义)
+    let x = String(raw ?? '').trim();
+    // 若整段是 JSON 字符串字面量(带转义),先解一层
     try {
         const parsed = JSON.parse(x);
-        if (typeof parsed === 'string') x = parsed;
+        if (typeof parsed === 'string') x = parsed.trim();
     } catch { /* 非 JSON 字符串字面量 */ }
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
         const next = x
             .trim()
-            .replace(/^(?:["'“「『]|&quot;)+/u, '')
-            .replace(/(?:["'”」』]|&quot;)+$/u, '')
+            .replace(/^["'`]+/, '')
+            .replace(/["'`]+$/, '')
             .replace(/,\s*$/, '')
             .trim();
         if (next === x) break;
         x = next;
     }
-    // 仍带完整转义引号时再剥一层
-    x = x.replace(/^\\+"|\\+"$/g, '').trim();
+    // 转义引号残留 \"text\"
+    x = x.replace(/^\\+"/, '').replace(/\\+"$/, '').trim();
     return x;
 }
 
@@ -370,9 +373,15 @@ function parseOptions(reply, count) {
     // 去掉模型有时包在外面的 markdown 代码块
     text = text.replace(/```(?:json|JSON)?\s*/g, '').replace(/```/g, '').trim();
 
-    let arr = tryParseJsonArray(text);
-    if (!Array.isArray(arr)) {
+    const fromJson = tryParseJsonArray(text);
+    let arr;
+    let needsClean = false;
+    if (Array.isArray(fromJson)) {
+        // JSON 已是干净字符串,只做轻量 trim;避免误剥台词里的中文引号
+        arr = fromJson.map(x => String(x ?? '').trim());
+    } else {
         // 降级:逐行解析,去掉序号 / 列表符号前缀
+        needsClean = true;
         arr = text
             .split('\n')
             .map(line => line.replace(/^\s*(?:\d+\s*[.、)．]|[-*•])\s*/, '').trim())
@@ -380,13 +389,13 @@ function parseOptions(reply, count) {
     }
     const list = [...new Set(
         arr
-            .map(cleanOptionText)
+            .map(x => (needsClean ? cleanOptionText(x) : x))
             .filter(Boolean)
     )].slice(0, count);
     console.debug(LOG_PREFIX, 'parseOptions', {
-        replyChars: text.length,
+        fromJson: !!fromJson,
         count: list.length,
-        first: list[0]?.slice(0, 40) ?? '',
+        first: list[0]?.slice(0, 50) ?? '',
     });
     return list;
 }
