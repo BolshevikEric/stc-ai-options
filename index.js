@@ -19,7 +19,7 @@ const MODULE_NAME = 'stc_chat_options';
 const LOG_PREFIX = '[STC Chat Options]';
 const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 // 模板版本号:更新 settings.html 后递增,绕开浏览器缓存
-const TEMPLATE_VERSION = '10';
+const TEMPLATE_VERSION = '11';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
 const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
@@ -37,6 +37,8 @@ const defaultSettings = {
     enabled: true,
     // AI 回复后自动生成选项
     auto: true,
+    // 点击选项填充方式:false=覆盖输入框;true=追加到已有内容末尾
+    inputAppend: false,
     // 插件外观主题:仅作用于选项框,不改动酒馆本身的 UI 主题
     ui: {
         theme: 'auto', // 'auto' = 跟随酒馆主题;'dark' = 深色;'light' = 浅色
@@ -621,7 +623,12 @@ function renderBar() {
 
 function fillInput(text) {
     const $ta = $('#send_textarea');
-    $ta.val(text).trigger('input').trigger('focus');
+    let next = text;
+    if (settings?.inputAppend) {
+        const prev = String($ta.val() ?? '');
+        next = prev.trim() ? `${prev}\n${text}` : text;
+    }
+    $ta.val(next).trigger('input').trigger('focus');
 }
 
 // #chat 的子节点增删(新消息、删除、swipe 渲染等)后,把选项框重新置底
@@ -816,6 +823,14 @@ function wireSettingsContent($content) {
             settings.enabled = $(this).prop('checked');
             persist();
             renderBar();
+        });
+
+    $content.find('#stc-co-input-append')
+        .prop('checked', settings.inputAppend)
+        .on('change', function () {
+            settings.inputAppend = $(this).prop('checked');
+            persist();
+            toastr.success(settings.inputAppend ? '选项将追加到输入框末尾' : '选项将覆盖输入框内容');
         });
 
     // ── 插件主题:仅控制选项框外观,不改动酒馆本身的 UI 主题 ──
