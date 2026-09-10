@@ -19,7 +19,7 @@ const MODULE_NAME = 'stc_chat_options';
 const LOG_PREFIX = '[STC Chat Options]';
 const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 // 模板版本号:更新 settings.html 后递增,绕开浏览器缓存
-const TEMPLATE_VERSION = '12';
+const TEMPLATE_VERSION = '13';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
 const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
@@ -285,20 +285,92 @@ function applyNativeMacros(text) {
     return substituteParams(str);
 }
 
-function parseOptions(reply, count) {
-    const text = String(reply ?? '').trim();
-    if (!text) return [];
-    let arr = null;
-    const jsonMatch = text.match(/\[[\s\S]*?\]/);
-    if (jsonMatch) {
-        try { arr = JSON.parse(jsonMatch[0]); } catch { /* 忽略,走降级解析 */ }
+/** 从文本中抠出最外层平衡的 JSON 数组字面量(跳过字符串内的括号)。 */
+function extractJsonArrayLiteral(text) {
+    const start = text.indexOf('[');
+    if (start < 0) return null;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = start; i < text.length; i++) {
+        const ch = text[i];
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === '[') depth++;
+        else if (ch === ']') {
+            depth--;
+            if (depth === 0) return text.slice(start, i + 1);
+        }
     }
-    if (!Array.isArray(arr)) {
+    return depth > 0 ? text.slice(start) : null;
+}
+
+function tryParseJsonArray(raw) {
+    const text = String(raw ?? '').trim();
+    if (!text) return null;
+    // 整段
+    try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) return parsed;
+        // 双重编码:外层是 JSON 字符串,内容才是数组
+        if (typeof parsed === 'string') {
+            const inner = parsed.trim();
+            try {
+                const arr = JSON.parse(inner);
+                if (Array.isArray(arr)) return arr;
+            } catch { /* 继续用字面量提取 */ }
+            const lit = extractJsonArrayLiteral(inner);
+            if (lit) {
+                try {
+                    const arr = JSON.parse(lit);
+                    if (Array.isArray(arr)) return arr;
+                } catch { /* 忽略 */ }
+            }
+        }
+    } catch { /* 忽略 */ }
+    // 从文中抠数组(兼容 ```json 代码块、前后说明文字)
+    const lit = extractJsonArrayLiteral(text);
+    if (lit) {
         try {
-            const parsed = JSON.parse(text);
-            if (Array.isArray(parsed)) arr = parsed;
-        } catch { /* 忽略,走降级解析 */ }
+            const arr = JSON.parse(lit);
+            if (Array.isArray(arr)) return arr;
+        } catch { /* 忽略 */ }
     }
+    return null;
+}
+
+/** 去掉选项两侧包裹引号/列表残留(多轮,兼容中英文引号与转义引号)。 */
+function cleanOptionText(raw) {
+    let x = String(raw ?? '');
+    // JSON 字符串本身(带转义)
+    try {
+        const parsed = JSON.parse(x);
+        if (typeof parsed === 'string') x = parsed;
+    } catch { /* 非 JSON 字符串字面量 */ }
+    for (let i = 0; i < 4; i++) {
+        const next = x
+            .trim()
+            .replace(/^(?:["'“「『]|&quot;)+/u, '')
+            .replace(/(?:["'”」』]|&quot;)+$/u, '')
+            .replace(/,\s*$/, '')
+            .trim();
+        if (next === x) break;
+        x = next;
+    }
+    // 仍带完整转义引号时再剥一层
+    x = x.replace(/^\\+"|\\+"$/g, '').trim();
+    return x;
+}
+
+function parseOptions(reply, count) {
+    let text = String(reply ?? '').trim();
+    if (!text) return [];
+    // 去掉模型有时包在外面的 markdown 代码块
+    text = text.replace(/```(?:json|JSON)?\s*/g, '').replace(/```/g, '').trim();
+
+    let arr = tryParseJsonArray(text);
     if (!Array.isArray(arr)) {
         // 降级:逐行解析,去掉序号 / 列表符号前缀
         arr = text
@@ -306,11 +378,17 @@ function parseOptions(reply, count) {
             .map(line => line.replace(/^\s*(?:\d+\s*[.、)．]|[-*•])\s*/, '').trim())
             .filter(Boolean);
     }
-    return [...new Set(
+    const list = [...new Set(
         arr
-            .map(x => String(x ?? '').trim().replace(/^["“「']|["”」']$/g, ''))
+            .map(cleanOptionText)
             .filter(Boolean)
     )].slice(0, count);
+    console.debug(LOG_PREFIX, 'parseOptions', {
+        replyChars: text.length,
+        count: list.length,
+        first: list[0]?.slice(0, 40) ?? '',
+    });
+    return list;
 }
 
 function lastChatSignature() {
