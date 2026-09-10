@@ -1,0 +1,41 @@
+- generic [ref=e3]:
+  - generic [ref=e8]: ◈Silly Tavern◈
+  - img "SillyTavern" [ref=e10]
+  - heading "SillyTavern" [level=1] [ref=e11]
+  - paragraph [ref=e12]: AI 角色扮演与对话平台 Creative · Immersive · Extensible
+  - generic [ref=e13]: ✦ ENTER ✦
+  - generic [ref=e14]:
+    - link " 登录账号" [ref=e15] [cursor=pointer]:
+      - /url: /login
+      - generic [ref=e16]: 
+      - text: 登录账号
+    - link " 注册新账号" [ref=e17] [cursor=pointer]:
+      - /url: /register
+      - generic [ref=e18]: 
+      - text: 注册新账号
+  - generic [ref=e19]:
+    - link " 社区论坛" [ref=e20] [cursor=pointer]:
+      - /url: /forum
+      - generic [ref=e21]: 
+      - text: 社区论坛
+    - link " 角色卡库" [ref=e22] [cursor=pointer]:
+      - /url: /public-characters
+      - generic [ref=e23]: 
+      - text: 角色卡库
+  - generic [ref=e24]:
+    - generic [ref=e25]:
+      - generic [ref=e26]: 
+      - heading "AI 对话" [level=3] [ref=e27]
+      - paragraph [ref=e28]: 支持多种 LLM 模型
+    - generic [ref=e29]:
+      - generic [ref=e30]: 
+      - heading "角色扮演" [level=3] [ref=e31]
+      - paragraph [ref=e32]: 丰富的角色卡系统
+    - generic [ref=e33]:
+      - generic [ref=e34]: 
+      - heading "个性化" [level=3] [ref=e35]
+      - paragraph [ref=e36]: 主题和界面定制
+    - generic [ref=e37]:
+      - generic [ref=e38]: 
+      - heading "扩展" [level=3] [ref=e39]
+      - paragraph [ref=e40]: 强大的扩展生态
