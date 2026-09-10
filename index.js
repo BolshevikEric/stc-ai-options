@@ -19,7 +19,7 @@ const MODULE_NAME = 'stc_chat_options';
 const LOG_PREFIX = '[STC Chat Options]';
 const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 // 模板版本号:更新 settings.html 后递增,绕开浏览器缓存
-const TEMPLATE_VERSION = '11';
+const TEMPLATE_VERSION = '12';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
 const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
@@ -789,16 +789,27 @@ function saveWiSelections() {
 
 function wireSettingsContent($content) {
     // ── 世界书 ──
-    const wireWi = () => {
-        renderWiList($content);
-        loadWorldBooks()
-            .then(() => renderWiList($content))
-            .catch(e => {
-                console.error(LOG_PREFIX, '世界书加载失败:', e);
-                $content.find('#stc-wi-books').html(`<div class="wi-empty">加载失败:${esc(e.message)}</div>`);
-            });
+    const $wiBlock = $content.find('.stc-wi-block');
+    const $wiBody = $content.find('#stc-wi-body');
+    const $wiExpandBtn = $content.find('#stc-wi-expand');
+    let wiLoadedOnce = false;
+    const setWiExpanded = (expanded) => {
+        $wiBlock.toggleClass('open', expanded);
+        $wiBody.prop('hidden', !expanded);
+        $wiExpandBtn.attr('aria-expanded', expanded ? 'true' : 'false')
+            .attr('title', expanded ? '收起世界书列表' : '展开世界书列表');
+        if (expanded && !wiLoadedOnce) {
+            wiLoadedOnce = true;
+            loadWorldBooks()
+                .then(() => renderWiList($content))
+                .catch(e => {
+                    console.error(LOG_PREFIX, '世界书加载失败:', e);
+                    $content.find('#stc-wi-books').html(`<div class="wi-empty">加载失败:${esc(e.message)}</div>`);
+                });
+        }
     };
-    wireWi();
+    setWiExpanded(false);
+    $wiExpandBtn.on('click', () => setWiExpanded(!$wiBlock.hasClass('open')));
     $content.find('#stc-wi-search').on('input', () => renderWiList($content));
     $content.find('#stc-wi-refresh').on('click', async function () {
         const btn = this;

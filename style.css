@@ -314,6 +314,55 @@
     font-size: 0.95em;
 }
 
+.stc-co-settings .stc-co-block-title > span:first-of-type {
+    flex: 1 1 auto;
+}
+
+.stc-co-settings .stc-wi-expand-btn {
+    margin-left: auto;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    opacity: 0.75;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    padding: 0;
+}
+
+.stc-co-settings .stc-wi-expand-btn:hover {
+    opacity: 1;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.stc-co-settings .stc-wi-expand-btn i {
+    transition: transform 0.18s ease;
+    font-size: 0.85em;
+}
+
+.stc-co-settings .stc-wi-block.open .stc-wi-expand-btn {
+    opacity: 1;
+}
+
+.stc-co-settings .stc-wi-block.open .stc-wi-expand-btn i {
+    transform: rotate(180deg);
+}
+
+.stc-co-settings .stc-wi-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stc-co-settings .stc-wi-body[hidden] {
+    display: none !important;
+}
+
 .stc-co-settings .stc-co-hint {
     font-size: 0.82em;
     opacity: 0.6;

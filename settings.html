@@ -11,7 +11,7 @@
         </label>
         <label class="checkbox_label" for="stc-co-input-append">
             <input id="stc-co-input-append" type="checkbox" />
-            <span>追加(关闭则覆盖)</span>
+            <span>追加选项内容(关闭则覆盖)</span>
         </label>
     </div>
 
@@ -35,21 +35,26 @@
         <textarea id="stc-co-gen-prompt" class="text_pole stc-co-gen-prompt" rows="9" placeholder="生成指令模板"></textarea>
     </div>
 
-    <div class="stc-co-block">
+    <div class="stc-co-block stc-wi-block">
         <div class="stc-co-block-title">
             <i class="fa-solid fa-globe"></i>
             <span>世界书</span>
-        </div>
-        <div class="wi-toolbar">
-            <input id="stc-wi-search" class="text_pole" type="text" placeholder="搜索世界书或条目…" autocomplete="off" />
-            <button id="stc-wi-refresh" class="menu_button">
-                <i class="fa-solid fa-rotate"></i>
+            <button id="stc-wi-expand" class="stc-wi-expand-btn" type="button" title="展开世界书列表" aria-expanded="false">
+                <i class="fa-solid fa-chevron-down"></i>
             </button>
         </div>
-        <div id="stc-wi-books" class="wi-books">
-            <div class="wi-empty">正在加载世界书…</div>
+        <div id="stc-wi-body" class="stc-wi-body" hidden>
+            <div class="wi-toolbar">
+                <input id="stc-wi-search" class="text_pole" type="text" placeholder="搜索世界书或条目…" autocomplete="off" />
+                <button id="stc-wi-refresh" class="menu_button">
+                    <i class="fa-solid fa-rotate"></i>
+                </button>
+            </div>
+            <div id="stc-wi-books" class="wi-books">
+                <div class="wi-empty">正在加载世界书…</div>
+            </div>
+            <div id="stc-wi-summary" class="wi-summary"></div>
         </div>
-        <div id="stc-wi-summary" class="wi-summary"></div>
     </div>
 
     <div class="stc-co-block">
