@@ -19,7 +19,7 @@ const MODULE_NAME = 'stc_chat_options';
 const LOG_PREFIX = '[STC Chat Options]';
 const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 // 模板版本号:更新 settings.html 后递增,绕开浏览器缓存
-const TEMPLATE_VERSION = '16';
+const TEMPLATE_VERSION = '17';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
 const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
@@ -45,8 +45,9 @@ const defaultSettings = {
     },
     // 选项生成参数
     gen: {
-        count: 4,      // 每次生成的选项数量
-        regex: '',     // 提取正则:从最新 AI 发言中抽取匹配内容发送,留空发送原文
+        count: 4,          // 每次生成的选项数量
+        regex: '',         // 提取正则:从最新 AI 发言中抽取匹配内容发送,留空发送原文
+        excludeRegex: '',  // 排除正则:先删除匹配内容再发送,留空不删除
         prompt: DEFAULT_GEN_PROMPT,
     },
     // 世界书:勾选的条目内容会附带进生成选项的提示词
@@ -269,6 +270,33 @@ function applyContentRegex(text, pattern) {
 }
 
 /**
+ * 排除正则:把匹配到的内容从原文中删除,不发送给 AI(提取正则的反向操作)。
+ * 支持 /pattern/flags 写法;强制全局替换,一次移除所有匹配;
+ * 删除后压缩多余空行,避免留下大段空白;正则无效或无匹配时自动回退原文。
+ */
+function applyExcludeRegex(text, pattern) {
+    const src = String(pattern ?? '').trim();
+    if (!src) return text;
+    let re;
+    try {
+        const m = src.match(/^\/(.*)\/([a-z]*)$/s);
+        const flags = m ? (m[2].includes('g') ? m[2] : `${m[2]}g`) : 'g';
+        re = m ? new RegExp(m[1], flags) : new RegExp(src, 'g');
+        if (!re.test(text)) return text;
+    } catch (e) {
+        console.warn(LOG_PREFIX, '排除正则无效,发送原文:', e?.message);
+        return text;
+    }
+    try {
+        re.lastIndex = 0;
+        return text.replace(re, '').replace(/\n{3,}/g, '\n\n').trim();
+    } catch (e) {
+        console.warn(LOG_PREFIX, '正则排除失败,发送原文:', e?.message);
+        return text;
+    }
+}
+
+/**
  * 酒馆原生占位符全量替换:整段交给酒馆原生宏引擎(substituteParams)处理,
  * {{char}}/{{user}}、<char>/<user>、{{time}}、{{date}}、{{roll}} 等全部按原生规范取值;
  * 角色/用户解析为空时回退「角色」/「用户」。
@@ -423,8 +451,11 @@ async function generateOptions({ manual = false } = {}) {
 
     try {
         const count = clampInt(settings.gen.count, 1, 8, 4);
-        const content = applyContentRegex(extractContent(), settings.gen.regex);
-        if (!content) throw new Error('没有可用的对话内容');
+        const raw = extractContent();
+        if (!raw) throw new Error('没有可用的对话内容');
+        // 先用排除正则删掉不发送的内容,再用提取正则从剩余文本中抽取;两者都留空即发送原文
+        const content = applyContentRegex(applyExcludeRegex(raw, settings.gen.excludeRegex), settings.gen.regex);
+        if (!content) throw new Error('内容已被排除正则全部删除,请检查排除正则');
         // 勾选的世界书条目:生成选项时附带进提示词(不影响酒馆主对话)
         if (Object.keys(settings.wi.selections).length) {
             await ensureWorldBooks();
@@ -961,6 +992,11 @@ function wireSettingsContent($content) {
 
     $content.find('#stc-co-gen-regex').val(settings.gen.regex ?? '').on('input', function () {
         settings.gen.regex = String($(this).val() ?? '');
+        persist();
+    });
+
+    $content.find('#stc-co-gen-exclude-regex').val(settings.gen.excludeRegex ?? '').on('input', function () {
+        settings.gen.excludeRegex = String($(this).val() ?? '');
         persist();
     });
 

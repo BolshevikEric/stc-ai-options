@@ -32,6 +32,10 @@
             <span>提取正则(可选,留空发送原文)</span>
             <input id="stc-co-gen-regex" class="text_pole" type="text" placeholder='如 /<剧情>([\s\S]*?)<\/剧情>/ 或 <事件>.*?</事件>' autocomplete="off" spellcheck="false" />
         </div>
+        <div class="stc-co-field-col">
+            <span>排除正则(可选,匹配内容不发送给 AI)</span>
+            <input id="stc-co-gen-exclude-regex" class="text_pole" type="text" placeholder='如 /<thinking>[\s\S]*?<\/thinking>/ 或 \[OOC:.*?\]' autocomplete="off" spellcheck="false" />
+        </div>
         <textarea id="stc-co-gen-prompt" class="text_pole stc-co-gen-prompt" rows="9" placeholder="生成指令模板"></textarea>
     </div>
 
