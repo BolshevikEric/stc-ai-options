@@ -445,10 +445,13 @@ function parseOptions(reply, count) {
 }
 
 // ── 选项存储:跟随 AI 消息分支 ──────────────────────────────
-// 选项写在「生成它时最新那条 AI 消息」的当前 swipe 分支上:
-//   msg.swipe_info[msg.swipe_id].extra.stc_chat_options(旧版本无 swipe_info 时退回 msg.extra)
-// 因此每个分支各自独立,swipe 到别的分支会显示那一条分支的选项;
-// 每个聊天保留最近 N 条带选项的消息,更老的整条清除;N 可在设置里改
+// 落点是 msg.extra(当前分支的 extra),不是 swipe_info[id].extra。
+// 酒馆在离开分支时执行 syncMesToSwipe():
+//   swipe_info[swipe_id].extra = structuredClone(msg.extra)
+// 也就是用 msg.extra 整块覆盖该分支的 extra——写进 swipe_info 的数据会被直接抹掉;
+// 切回分支时 syncSwipeToMes() 又把 swipe_info[id].extra 克隆回 msg.extra。
+// 所以只写 msg.extra,分支隔离与来回同步交给酒馆自己。
+// 每个聊天保留最近 N 条带选项的消息,更老的整条清除;N 可在设置里改。
 
 const OPTIONS_KEY = 'stc_chat_options';
 const OPTIONS_STORE_VERSION = 1;
@@ -463,60 +466,57 @@ function optionHistoryLimit() {
 
 let persistTimer = null;
 
-/**
- * 取当前分支的存储槽。
- * 优先 swipe_info[swipe_id].extra;旧版本没有 swipe_info 时退回消息级 extra。
- * create=false 时只读,绝不改动消息对象。
- */
-function getSwipeSlot(msg, { create = false } = {}) {
-    if (!msg) return null;
-    const swipeId = Number.isInteger(msg.swipe_id) ? msg.swipe_id : 0;
-    if (Array.isArray(msg.swipe_info)) {
-        let slot = msg.swipe_info[swipeId];
-        if (!slot || typeof slot !== 'object') {
-            if (!create) return null;
-            slot = msg.swipe_info[swipeId] = {};
-        }
-        if (!slot.extra || typeof slot.extra !== 'object') {
-            if (!create) return null;
-            slot.extra = {};
-        }
-        return slot;
-    }
-    if (!msg.extra || typeof msg.extra !== 'object') {
-        if (!create) return null;
-        msg.extra = {};
-    }
-    return msg;
+function getSwipeId(msg) {
+    return Number.isInteger(msg?.swipe_id) ? msg.swipe_id : 0;
 }
 
-/** 当前分支签名:消息下标 + 分支号 + 正文前 120 字。正文被编辑或换分支都会失配。 */
+/**
+ * 当前分支签名:分支号 + 正文前 120 字。
+ * 不含消息下标——删除前面的消息会让下标平移,带上反而会把有效数据判成失效;
+ * 数据本身就存在这条消息里,不需要靠下标认身份。
+ */
 function branchSignature(found) {
     if (!found) return '';
-    const swipeId = Number.isInteger(found.msg.swipe_id) ? found.msg.swipe_id : 0;
-    return `${found.index}|${swipeId}|${String(found.msg.mes ?? '').slice(0, 120)}`;
+    return `${getSwipeId(found.msg)}|${String(found.msg.mes ?? '').slice(0, 120)}`;
 }
 
 function lastChatSignature() {
     return branchSignature(findLastAiMessage());
 }
 
-/** 读取某个分支已存的选项数据;版本不符或结构损坏返回 null。 */
+/**
+ * 兼容 0.5.1:那一版把数据写进了 swipe_info[swipe_id].extra。
+ * 当前分支还在、签名对得上就搬到 msg.extra,并清掉旧位置。
+ */
+function migrateLegacySwipeInfo(msg) {
+    if (!Array.isArray(msg?.swipe_info)) return;
+    const swipeId = getSwipeId(msg);
+    const extra = msg.swipe_info[swipeId]?.extra;
+    const legacy = extra?.[OPTIONS_KEY];
+    if (!legacy || legacy.v !== OPTIONS_STORE_VERSION) return;
+    const sig = branchSignature({ msg });
+    if (legacy.sig === sig && !msg.extra?.[OPTIONS_KEY]) {
+        if (!msg.extra || typeof msg.extra !== 'object') msg.extra = {};
+        msg.extra[OPTIONS_KEY] = legacy;
+    }
+    delete extra[OPTIONS_KEY];
+}
+
+/** 读取当前分支已存的选项数据;版本不符或结构损坏返回 null。 */
 function readStoredOptions(msg) {
-    const slot = getSwipeSlot(msg);
-    const data = slot?.extra?.[OPTIONS_KEY];
+    const data = msg?.extra?.[OPTIONS_KEY];
     if (!data || data.v !== OPTIONS_STORE_VERSION) return null;
     if (!Array.isArray(data.options) || !data.options.length) return null;
     return data;
 }
 
-/** 把当前选项写入最新 AI 消息的当前分支。 */
+/** 把当前选项写入最新 AI 消息(即当前分支的 extra)。 */
 function writeStoredOptions() {
     const found = findLastAiMessage();
     if (!found) return;
-    const slot = getSwipeSlot(found.msg, { create: true });
-    if (!slot) return;
-    slot.extra[OPTIONS_KEY] = {
+    const msg = found.msg;
+    if (!msg.extra || typeof msg.extra !== 'object') msg.extra = {};
+    msg.extra[OPTIONS_KEY] = {
         v: OPTIONS_STORE_VERSION,
         options: lastOptions.slice(),
         direction: String(lastDirection ?? ''),
@@ -526,27 +526,25 @@ function writeStoredOptions() {
     };
 }
 
-/** 只保留最近 N 条带选项的消息,更老的整条(含所有分支)清除。 */
+/** 只保留最近 N 条带选项的消息,更老的整条(含各分支残留)清除。 */
 function pruneStoredOptions() {
     const chat = getContext().chat;
     if (!Array.isArray(chat)) return;
+    const limit = optionHistoryLimit();
     let kept = 0;
     for (let i = chat.length - 1; i >= 0; i--) {
         const msg = chat[i];
         if (!msg) continue;
-        const holders = [];
-        if (Array.isArray(msg.swipe_info)) {
-            for (const s of msg.swipe_info) {
-                if (s?.extra?.[OPTIONS_KEY]) holders.push(s);
-            }
-        }
-        if (msg.extra?.[OPTIONS_KEY]) holders.push(msg);
-        if (!holders.length) continue;
+        const inExtra = Boolean(msg.extra?.[OPTIONS_KEY]);
+        const inSwipes = Array.isArray(msg.swipe_info)
+            && msg.swipe_info.some(s => s?.extra?.[OPTIONS_KEY]);
+        if (!inExtra && !inSwipes) continue;
         kept += 1;
-        if (kept > optionHistoryLimit()) {
-            for (const h of holders) {
-                delete h.extra[OPTIONS_KEY];
-                if (!Object.keys(h.extra).length) delete h.extra;
+        if (kept <= limit) continue;
+        if (inExtra) delete msg.extra[OPTIONS_KEY];
+        if (inSwipes) {
+            for (const s of msg.swipe_info) {
+                if (s?.extra?.[OPTIONS_KEY]) delete s.extra[OPTIONS_KEY];
             }
         }
     }
@@ -607,6 +605,7 @@ function restoreStoredOptions() {
         return;
     }
     const found = findLastAiMessage();
+    if (found) migrateLegacySwipeInfo(found.msg);
     const data = found ? readStoredOptions(found.msg) : null;
     const sig = branchSignature(found);
     if (data && sig && data.sig === sig) {
