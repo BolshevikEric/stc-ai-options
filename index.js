@@ -85,6 +85,7 @@ let lastDirection = ''; // 用户设置的生成方向(会话内有效,空=不�
 let dirEditing = false; // 方向输入行是否展开
 let barCollapsed = false;    // 选项面板是否折叠(会话内有效)
 let selectedOptionText = ''; // 当前高亮的选项文本(覆盖填入时唯一)
+let lastRenderKey = '';      // 上次渲染的状态指纹:一致就跳过重建,避免无谓重播动画
 
 // ── 设置初始化 ────────────────────────────────────────────────
 
@@ -550,14 +551,25 @@ function pruneStoredOptions() {
     }
 }
 
-async function saveChatSafe() {
-    const fn = typeof stScript?.saveChat === 'function' ? stScript.saveChat : null;
-    if (!fn) {
-        console.warn(LOG_PREFIX, '当前版本未提供 saveChat,选项只在酒馆下次保存聊天时落盘');
-        return;
-    }
+/**
+ * 落盘一律走酒馆自己的保存接口。
+ * 直接调 saveChat() 会绕过 isChatSaving 互斥和防抖队列,与酒馆自身的保存抢写同一个文件;
+ * 一旦被服务端判定完整性冲突,酒馆会弹窗并 window.location.reload() 重载页面,
+ * 表现为"人设提示反复弹出 + 选项反复重播入场"。
+ */
+async function saveChatSafe({ immediate = false } = {}) {
+    const conditional = typeof stScript?.saveChatConditional === 'function' ? stScript.saveChatConditional : null;
+    const debounced = typeof stScript?.saveChatDebounced === 'function' ? stScript.saveChatDebounced : null;
     try {
-        await fn();
+        if (immediate && conditional) {
+            await conditional();
+        } else if (debounced) {
+            debounced();
+        } else if (conditional) {
+            await conditional();
+        } else {
+            console.warn(LOG_PREFIX, '当前版本没有可用的保存接口,选项会在酒馆下次保存聊天时一并落盘');
+        }
     } catch (e) {
         console.warn(LOG_PREFIX, '保存聊天失败:', e);
     }
@@ -576,7 +588,7 @@ function persistOptions({ immediate = false } = {}) {
         persistTimer = null;
     }
     if (immediate) {
-        saveChatSafe();
+        saveChatSafe({ immediate: true });
     } else {
         persistTimer = setTimeout(() => {
             persistTimer = null;
@@ -944,9 +956,22 @@ function buildStateBox(kind) {
     return box;
 }
 
-function renderBar() {
+function renderBar({ force = false } = {}) {
     const bar = ensureOptionsBar();
     if (!bar) return;
+
+    // 状态没变就不重建 DOM:酒馆在流式输出、切分支、编辑消息时会连续触发事件,
+    // 每次重建都让列表重播入场效果,看起来就是"选项不停闪烁"。
+    const key = JSON.stringify([
+        settings.enabled, settings.ui?.theme, barCollapsed, generating,
+        dirEditing, lastError, lastDirection, lastOptions,
+    ]);
+    if (!force && key === lastRenderKey) {
+        bar.classList.toggle('is-collapsed', barCollapsed);
+        return;
+    }
+    lastRenderKey = key;
+
     bar.innerHTML = '';
 
     // 应用插件本地主题(仅影响选项框外观,不改动酒馆主题)
@@ -1021,6 +1046,8 @@ function renderBar() {
         list.className = 'stc-co-list';
         lastOptions.forEach((text, idx) => list.appendChild(buildOptionRow(idx + 1, text)));
         region.appendChild(list);
+        // 下一帧再挂 is-in,让 transition 有起始状态可过渡
+        requestAnimationFrame(() => list.classList.add('is-in'));
     }
     if (dirEditing) region.appendChild(buildDirInputRow());
     body.appendChild(region);
@@ -1050,16 +1077,23 @@ function fillInput(text) {
     $ta.val(next).trigger('input').trigger('focus');
 }
 
-// #chat 的子节点增删(新消息、删除、swipe 渲染等)后,把选项框重新置底
+// #chat 的子节点增删(新消息、删除、swipe 渲染等)后,把选项框重新置底。
+// 用 rAF 合并同帧的多次变更,避免和酒馆自己的尾部节点来回抢位置。
 function observeChat() {
     const chat = document.getElementById('chat');
     if (!chat || typeof MutationObserver === 'undefined') return;
+    let pending = false;
     const observer = new MutationObserver(() => {
-        const bar = $optionsBar?.[0];
-        if (!bar) return;
-        if (chat.lastElementChild !== bar) {
-            chat.appendChild(bar);
-        }
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(() => {
+            pending = false;
+            const bar = $optionsBar?.[0];
+            if (!bar || !bar.isConnected) return;
+            if (chat.lastElementChild !== bar) {
+                chat.appendChild(bar);
+            }
+        });
     });
     observer.observe(chat, { childList: true });
 }
@@ -1402,6 +1436,19 @@ function wireSettingsContent($content) {
 
 // ── 入口 ─────────────────────────────────────────────────────
 
+// 诊断用:CHAT_CHANGED 短时间内反复触发,说明聊天被反复重载(人设提示也会跟着反复弹),
+// 这时面板会被反复重建。只在异常密度下打一条警告,便于排查而不是刷屏。
+let chatChangedAt = 0;
+let chatChangedBurst = 0;
+function noteChatChangedBurst() {
+    const now = Date.now();
+    chatChangedBurst = now - chatChangedAt < 1500 ? chatChangedBurst + 1 : 1;
+    chatChangedAt = now;
+    if (chatChangedBurst === 5) {
+        console.warn(LOG_PREFIX, 'CHAT_CHANGED 在 1.5 秒内触发了 5 次,聊天可能正在反复重载');
+    }
+}
+
 jQuery(async () => {
     initSettings();
     applyJailbreakInjection();
@@ -1411,6 +1458,7 @@ jQuery(async () => {
     observeChat();
 
     eventSource.on(event_types.CHAT_CHANGED, () => {
+        noteChatChangedBurst();
         // 切换聊天:先清空,再尝试从新聊天的最后一条消息恢复已存选项
         clearOptionsState();
         restoreStoredOptions();

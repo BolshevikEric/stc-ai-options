@@ -247,10 +247,13 @@ body.t-light .bubble-user{ background: #cfe0ff; border: 1px solid rgba(53,80,122
 #stc-chat-options-bar .stc-co-list > li {
     opacity: 0;
     transform: translateY(4px);
-    animation: stc-co-arrive 240ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-    animation-delay: var(--delay, 0ms);
+    transition:
+        opacity 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition-delay: var(--delay, 0ms);
 }
-@keyframes stc-co-arrive { to { opacity: 1; transform: translateY(0); } }
+
+#stc-chat-options-bar .stc-co-list.is-in > li { opacity: 1; transform: translateY(0); }
 
 #stc-chat-options-bar .stc-co-btn {
     position: relative;
@@ -693,6 +696,7 @@ function render() {
         list.className = 'stc-co-list';
         state.options.forEach((t, i) => list.appendChild(buildOptionRow(i + 1, t)));
         region.appendChild(list);
+        requestAnimationFrame(() => list.classList.add('is-in'));
     }
     if (state.editing) region.appendChild(buildDirInputRow());
     body.appendChild(region);
