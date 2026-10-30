@@ -20,6 +20,9 @@
     position: relative;
     display: flex;
     flex-direction: column;
+    /* #chat 是纵向 flex 容器;面板带 overflow:hidden 时自动最小尺寸为 0,
+       长聊天里会被压缩到只剩几个像素,必须禁止收缩 */
+    flex: 0 0 auto;
     overflow: hidden;
     width: min(680px, calc(100% - 20px));
     margin: 8px auto;

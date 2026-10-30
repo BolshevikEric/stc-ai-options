@@ -121,6 +121,8 @@ body.t-light .bubble-user{ background: #cfe0ff; border: 1px solid rgba(53,80,122
     position: relative;
     display: flex;
     flex-direction: column;
+    /* 酒馆 #chat 是纵向 flex 容器;面板带 overflow:hidden 时会被压缩,必须禁止收缩 */
+    flex: 0 0 auto;
     overflow: hidden;
     width: min(680px, calc(100% - 20px));
     margin: 8px auto;
