@@ -77,6 +77,8 @@ let generating = false; // 是否正在生成
 let lastGenSig = '';    // 上次生成选项时"最后一条消息"的签名,防止重复/自触发
 let lastDirection = ''; // 用户设置的生成方向(会话内有效,空=不限定)
 let dirEditing = false; // 方向输入行是否展开
+let barCollapsed = false;    // 选项面板是否折叠(会话内有效)
+let selectedOptionText = ''; // 当前高亮的选项文本(覆盖填入时唯一)
 
 // ── 设置初始化 ────────────────────────────────────────────────
 
@@ -446,6 +448,7 @@ async function generateOptions({ manual = false } = {}) {
     generating = true;
     lastError = null;
     lastOptions = []; // 生成期间清空,避免失败时残留上一轮选项
+    selectedOptionText = '';
     dirEditing = false;
     renderBar();
 
@@ -605,24 +608,42 @@ function makeRow(className) {
     return row;
 }
 
-function makeIconRow(className, iconClass, text) {
-    const row = makeRow(className);
+// 标题栏操作按钮(生成/换一批 / 生成方向)
+function makeHeaderAction({ iconClass, label, title, active = false, disabled = false, onClick }) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'stc-co-act' + (active ? ' is-active' : '');
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
+    if (disabled) btn.disabled = true;
     const icon = document.createElement('i');
     icon.className = iconClass;
+    icon.setAttribute('aria-hidden', 'true');
     const span = document.createElement('span');
-    span.textContent = text;
-    row.appendChild(icon);
-    row.appendChild(span);
-    return row;
+    span.textContent = label;
+    btn.append(icon, span);
+    btn.addEventListener('click', onClick);
+    return btn;
 }
 
-// 「生成方向」按钮:与主按钮并排(占 12% 宽),点击展开/收起内嵌输入行;已设方向时高亮
-function makeDirButton() {
-    const row = makeIconRow('stc-co-dir' + (lastDirection ? ' stc-co-dir-active' : ''), 'fa-solid fa-compass', '生成方向');
-    row.querySelector('span').className = 'stc-co-dir-text';
-    row.title = lastDirection ? `当前方向:${lastDirection}(点击修改)` : '设置本次生成选项的方向';
-    row.addEventListener('click', () => { dirEditing = !dirEditing; renderBar(); });
-    return row;
+// 折叠按钮:收起后只保留标题栏
+function buildCollapseButton() {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'stc-co-collapse';
+    btn.setAttribute('aria-expanded', String(!barCollapsed));
+    btn.setAttribute('aria-controls', 'stc-co-panel-body');
+    const label = document.createElement('span');
+    label.textContent = barCollapsed ? '展开' : '收起';
+    const icon = document.createElement('i');
+    icon.className = 'fa-solid fa-chevron-down stc-co-collapse-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    btn.append(label, icon);
+    btn.addEventListener('click', () => {
+        barCollapsed = !barCollapsed;
+        renderBar();
+    });
+    return btn;
 }
 
 // 内嵌方向输入行:预填当前方向,回车/✓ 确认,Esc/✕ 取消
@@ -667,21 +688,73 @@ function confirmDirection(value) {
 }
 
 function buildOptionRow(seq, text) {
+    const item = document.createElement('li');
+    // 逐条错峰入场
+    item.style.setProperty('--delay', `${Math.min((seq - 1) * 35, 210)}ms`);
+
     const btn = makeRow('stc-co-btn');
-    btn.title = text;
+    btn.setAttribute('aria-label', `选择回应 ${seq}:${text}`);
+    if (selectedOptionText === text) btn.classList.add('is-selected');
 
-    const num = document.createElement('div');
+    const num = document.createElement('span');
     num.className = 'stc-co-num';
-    num.textContent = String(seq);
-    btn.appendChild(num);
+    num.textContent = String(seq).padStart(2, '0');
+    num.setAttribute('aria-hidden', 'true');
 
-    const main = document.createElement('div');
-    main.className = 'stc-co-main';
-    main.textContent = text;
-    btn.appendChild(main);
+    const copy = document.createElement('span');
+    copy.className = 'stc-co-text';
+    copy.textContent = text;
 
-    btn.addEventListener('click', () => fillInput(text));
-    return btn;
+    const arrow = document.createElement('span');
+    arrow.className = 'stc-co-arrow';
+    arrow.textContent = '›';
+    arrow.setAttribute('aria-hidden', 'true');
+
+    btn.append(num, copy, arrow);
+    btn.addEventListener('click', () => {
+        // 覆盖填入时只保留一个高亮;追加填入允许逐条高亮,与填入行为一致
+        if (!settings.inputAppend) {
+            document.querySelectorAll('#stc-chat-options-bar .stc-co-btn.is-selected')
+                .forEach(el => el.classList.remove('is-selected'));
+            selectedOptionText = '';
+        }
+        btn.classList.add('is-selected');
+        selectedOptionText = text;
+        fillInput(text);
+    });
+    item.appendChild(btn);
+    return item;
+}
+
+// 生成中 / 生成入口 / 生成失败的占位框
+function buildStateBox(kind) {
+    const clickable = kind !== 'generating';
+    const box = makeRow('stc-co-empty' + (kind === 'error' ? ' is-error' : '') + (clickable ? ' is-clickable' : ''));
+    const strong = document.createElement('strong');
+    const detail = document.createElement('span');
+    if (kind === 'generating') {
+        const icon = document.createElement('i');
+        icon.className = 'fa-solid fa-spinner fa-spin';
+        icon.setAttribute('aria-hidden', 'true');
+        strong.append(icon, document.createTextNode('正在生成选项…'));
+        detail.textContent = 'AI 正在阅读最新剧情,请稍候';
+    } else if (kind === 'error') {
+        strong.textContent = `生成失败:${lastError}`;
+        detail.textContent = '点击此处重试,或在右上角修改生成方向';
+        box.title = '点击重试';
+    } else {
+        const icon = document.createElement('i');
+        icon.className = 'fa-solid fa-wand-magic-sparkles';
+        icon.setAttribute('aria-hidden', 'true');
+        strong.append(icon, document.createTextNode('还没有生成选项'));
+        detail.textContent = '点击此处立即生成,或先设定生成方向';
+        box.title = '点击生成选项';
+    }
+    box.append(strong, detail);
+    if (clickable) {
+        box.addEventListener('click', () => generateOptions({ manual: true }));
+    }
+    return box;
 }
 
 function renderBar() {
@@ -693,52 +766,91 @@ function renderBar() {
     bar.classList.remove('stc-theme-dark', 'stc-theme-light');
     if (settings.ui?.theme === 'dark') bar.classList.add('stc-theme-dark');
     if (settings.ui?.theme === 'light') bar.classList.add('stc-theme-light');
+    bar.classList.toggle('is-collapsed', barCollapsed);
 
     if (!settings.enabled || !isChatLoaded()) {
         bar.style.display = 'none';
         return;
     }
-
-    if (generating) {
-        bar.style.display = '';
-        bar.appendChild(makeIconRow('stc-co-state', 'fa-solid fa-spinner fa-spin', '正在生成选项…'));
-        return;
-    }
-
-    if (!lastOptions.length && lastError) {
-        bar.style.display = '';
-        const pair = makeRow('stc-co-pair');
-        const row = makeIconRow('stc-co-state stc-co-error', 'fa-solid fa-triangle-exclamation', `生成失败:${lastError},点击重试`);
-        row.addEventListener('click', () => generateOptions({ manual: true }));
-        pair.appendChild(row);
-        pair.appendChild(makeDirButton());
-        bar.appendChild(pair);
-        if (dirEditing) bar.appendChild(buildDirInputRow());
-        return;
-    }
-
-    if (!lastOptions.length) {
-        // 尚未生成过:显示一个入口按钮 + 生成方向按钮
-        bar.style.display = '';
-        const pair = makeRow('stc-co-pair');
-        const row = makeIconRow('stc-co-state stc-co-entry', 'fa-solid fa-wand-magic-sparkles', '生成选项');
-        row.addEventListener('click', () => generateOptions({ manual: true }));
-        pair.appendChild(row);
-        pair.appendChild(makeDirButton());
-        bar.appendChild(pair);
-        if (dirEditing) bar.appendChild(buildDirInputRow());
-        return;
-    }
-
     bar.style.display = '';
-    lastOptions.forEach((text, idx) => bar.appendChild(buildOptionRow(idx + 1, text)));
-    const pair = makeRow('stc-co-pair');
-    const refresh = makeIconRow('stc-co-refresh', 'fa-solid fa-rotate-right', '换一批');
-    refresh.addEventListener('click', () => generateOptions({ manual: true }));
-    pair.appendChild(refresh);
-    pair.appendChild(makeDirButton());
-    bar.appendChild(pair);
-    if (dirEditing) bar.appendChild(buildDirInputRow());
+
+    // ── 标题栏:标题 + 计数徽章 + 操作区 ──
+    const header = makeRow('stc-co-header');
+    const titleBlock = makeRow('stc-co-titleblock');
+    titleBlock.title = '点击折叠或展开选项面板';
+    const titleRow = makeRow('stc-co-title-row');
+    const title = document.createElement('span');
+    title.className = 'stc-co-title';
+    title.textContent = '回应选项';
+    const badge = document.createElement('span');
+    badge.className = 'stc-co-badge';
+    badge.textContent = generating ? '…' : String(lastOptions.length);
+    titleRow.append(title, badge);
+    titleBlock.appendChild(titleRow);
+    titleBlock.addEventListener('click', () => {
+        barCollapsed = !barCollapsed;
+        renderBar();
+    });
+    header.appendChild(titleBlock);
+
+    const actions = makeRow('stc-co-actions');
+    // 生成入口常驻标题栏:未生成=生成选项,有选项=换一批,失败=重试,生成中置灰
+    actions.appendChild(generating
+        ? makeHeaderAction({
+            iconClass: 'fa-solid fa-spinner fa-spin',
+            label: '生成中',
+            title: '正在生成选项…',
+            disabled: true,
+        })
+        : makeHeaderAction({
+            iconClass: 'fa-solid ' + (lastOptions.length || lastError ? 'fa-rotate-right' : 'fa-wand-magic-sparkles'),
+            label: lastError ? '重试' : (lastOptions.length ? '换一批' : '生成选项'),
+            title: lastError ? '重新生成选项' : (lastOptions.length ? '重新生成一批选项' : '根据最新剧情生成选项'),
+            onClick: () => generateOptions({ manual: true }),
+        }));
+    actions.appendChild(makeHeaderAction({
+        iconClass: 'fa-solid fa-compass',
+        label: '生成方向',
+        title: lastDirection ? `当前方向:${lastDirection}(点击修改)` : '设置本次生成选项的方向',
+        active: Boolean(lastDirection),
+        onClick: () => { dirEditing = !dirEditing; renderBar(); },
+    }));
+    actions.appendChild(buildCollapseButton());
+    header.appendChild(actions);
+    bar.appendChild(header);
+
+    // ── 主体:选项列表 / 状态占位框 + 内嵌方向输入行 ──
+    const body = makeRow('stc-co-body');
+    body.id = 'stc-co-panel-body';
+    const region = makeRow('stc-co-region');
+    if (generating) {
+        region.appendChild(buildStateBox('generating'));
+    } else if (!lastOptions.length && lastError) {
+        region.appendChild(buildStateBox('error'));
+    } else if (!lastOptions.length) {
+        region.appendChild(buildStateBox('entry'));
+    } else {
+        const list = document.createElement('ol');
+        list.className = 'stc-co-list';
+        lastOptions.forEach((text, idx) => list.appendChild(buildOptionRow(idx + 1, text)));
+        region.appendChild(list);
+    }
+    if (dirEditing) region.appendChild(buildDirInputRow());
+    body.appendChild(region);
+    bar.appendChild(body);
+
+    // ── 状态栏:计数 + 最近状态 ──
+    const hasError = Boolean(!lastOptions.length && lastError);
+    const footer = makeRow('stc-co-footer');
+    const count = document.createElement('span');
+    count.textContent = generating
+        ? '正在生成…'
+        : lastOptions.length ? `共 ${lastOptions.length} 项` : '暂无可用选项';
+    const status = document.createElement('span');
+    status.className = 'stc-co-status' + (hasError ? ' is-error' : '');
+    status.textContent = hasError ? '生成失败,点击面板重试' : (dirEditing ? '正在编辑生成方向' : '就绪');
+    footer.append(count, status);
+    bar.appendChild(footer);
 }
 
 function fillInput(text) {
@@ -1084,6 +1196,7 @@ jQuery(async () => {
         lastOptions = [];
         lastError = null;
         lastGenSig = '';
+        selectedOptionText = '';
         renderBar();
     });
     eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);

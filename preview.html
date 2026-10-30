@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STC 聊天选项 — 生成方向按钮 预览</title>
+<title>STC 聊天选项 — 回应选项面板预览</title>
 <style>
 /* ===================== 预览页框架(非插件样式) ===================== */
 * { box-sizing: border-box; }
@@ -102,188 +102,331 @@ body.t-light .bubble-user{ background: #cfe0ff; border: 1px solid rgba(53,80,122
 .bubble .who { font-size: 0.78em; font-weight: 600; opacity: 0.55; display: block; margin-bottom: 3px; }
 
 /* ================================================================
-   以下为插件选项框样式(与 style.css 改造方案一致,可直接移植)
+   以下为插件选项面板样式(与 style.css 保持同步,可直接对照移植)
+   预览中「跟随酒馆主题」以深色值演示;深/浅色用 .stc-theme-* 切换
    ================================================================ */
 #stc-chat-options-bar {
-    /* 主题变量:默认跟随酒馆(此处演示深色值) */
-    --stc-bg: rgba(23, 23, 29, 0.96);
-    --stc-border: rgba(255, 255, 255, 0.12);
-    --stc-fg: #e8e8ec;
-    --stc-hover: rgba(255, 255, 255, 0.45);
-    --stc-num-bg: rgba(255, 255, 255, 0.08);
-    --stc-num-border: rgba(255, 255, 255, 0.16);
-    --stc-danger: #f08080;
+    --stc-accent: #6366f1;
+    --stc-accent-light: #818cf8;
+    --stc-panel: #12151c;
+    --stc-border: rgba(255, 255, 255, 0.08);
+    --stc-fg: #e6edf3;
+    --stc-muted: color-mix(in srgb, var(--stc-fg) 55%, transparent);
+    --stc-card: color-mix(in srgb, var(--stc-fg) 4%, transparent);
+    --stc-card-hover: color-mix(in srgb, var(--stc-fg) 7%, transparent);
+    --stc-card-selected: color-mix(in srgb, var(--stc-fg) 10%, transparent);
+    --stc-border-hover: color-mix(in srgb, var(--stc-accent-light) 45%, transparent);
+    --stc-danger: #f85149;
 
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    overflow: hidden;
     width: min(680px, calc(100% - 20px));
     margin: 8px auto;
     padding: 0;
-}
-body.t-light #stc-chat-options-bar {
-    --stc-bg: rgba(250, 250, 252, 0.97);
-    --stc-border: rgba(0, 0, 0, 0.16);
-    --stc-fg: #26262c;
-    --stc-hover: rgba(0, 0, 0, 0.45);
-    --stc-num-bg: rgba(0, 0, 0, 0.06);
-    --stc-num-border: rgba(0, 0, 0, 0.18);
-    --stc-danger: #d63031;
-}
-
-/* 选项卡片 */
-#stc-chat-options-bar .stc-co-btn {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    width: 100%;
-    min-height: 36px;
-    padding: 7px 11px;
-    border-radius: 9px;
-    color: var(--stc-fg);
-    background: var(--stc-bg);
+    box-sizing: border-box;
     border: 1px solid var(--stc-border);
-    cursor: pointer;
-    user-select: none;
-    text-align: left;
-    transition: border-color 0.15s ease, filter 0.15s ease;
-}
-#stc-chat-options-bar .stc-co-btn:hover { border-color: var(--stc-hover); filter: brightness(1.08); }
-#stc-chat-options-bar .stc-co-num {
-    flex-shrink: 0;
-    width: 20px; height: 20px;
-    border-radius: 6px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.72em;
-    opacity: 0.85;
-    background: var(--stc-num-bg);
-    border: 1px solid var(--stc-num-border);
-}
-#stc-chat-options-bar .stc-co-main {
-    flex: 1; min-width: 0;
-    font-size: 0.86em;
-    line-height: 1.4;
-    word-break: break-word;
+    border-radius: 16px;
+    background: var(--stc-panel);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-/* 状态行(生成中 / 失败 / 入口) */
-#stc-chat-options-bar .stc-co-state {
-    display: flex;
+#stc-chat-options-bar.stc-theme-dark {
+    --stc-panel: #12151c;
+    --stc-border: rgba(255, 255, 255, 0.08);
+    --stc-border-hover: rgba(129, 140, 248, 0.45);
+    --stc-fg: #e6edf3;
+    --stc-muted: #8b949e;
+    --stc-card: #191d26;
+    --stc-card-hover: #212632;
+    --stc-card-selected: #262c3a;
+    --stc-danger: #f85149;
+}
+
+#stc-chat-options-bar.stc-theme-light {
+    --stc-panel: #f4f5fa;
+    --stc-border: rgba(0, 0, 0, 0.12);
+    --stc-border-hover: rgba(99, 102, 241, 0.5);
+    --stc-fg: #24292f;
+    --stc-muted: #6a7280;
+    --stc-card: #ffffff;
+    --stc-card-hover: #eef0f7;
+    --stc-card-selected: #e4e7f7;
+    --stc-danger: #d73a49;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+#stc-chat-options-bar.is-collapsed .stc-co-body,
+#stc-chat-options-bar.is-collapsed .stc-co-footer { display: none; }
+
+/* ── 标题栏 ── */
+#stc-chat-options-bar .stc-co-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 8px;
-    min-height: 32px;
-    padding: 6px 11px;
-    border-radius: 9px;
-    font-size: 0.8em;
-    opacity: 0.85;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--stc-border);
+    background: color-mix(in srgb, var(--stc-fg) 2%, transparent);
+}
+#stc-chat-options-bar.is-collapsed .stc-co-header { border-bottom-color: transparent; }
+#stc-chat-options-bar .stc-co-titleblock { min-width: 0; cursor: pointer; user-select: none; }
+#stc-chat-options-bar .stc-co-title-row { display: flex; align-items: center; gap: 8px; }
+#stc-chat-options-bar .stc-co-title {
     color: var(--stc-fg);
-    background: var(--stc-bg);
-    border: 1px dashed var(--stc-border);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: 0.02em;
 }
-#stc-chat-options-bar .stc-co-error {
-    color: var(--stc-danger);
-    opacity: 1;
-    cursor: pointer;
-    border-style: solid;
+#stc-chat-options-bar .stc-co-badge {
+    padding: 2px 7px;
+    border-radius: 999px;
+    color: var(--stc-accent-light);
+    background: color-mix(in srgb, var(--stc-accent) 14%, transparent);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
 }
-#stc-chat-options-bar .stc-co-entry { cursor: pointer; justify-content: center; }
-#stc-chat-options-bar .stc-co-entry:hover { border-color: var(--stc-hover); filter: brightness(1.08); opacity: 1; }
 
-/* ── 新增:88 / 12 并排容器 ── */
-#stc-chat-options-bar .stc-co-pair {
-    display: flex;
-    align-items: stretch;
-    gap: 6px;
-}
-#stc-chat-options-bar .stc-co-pair .stc-co-main-btn { flex: 88 1 0; min-width: 0; }
-#stc-chat-options-bar .stc-co-pair .stc-co-dir     { flex: 12 1 0; min-width: 0; }
-
-/* ── 新增:生成方向按钮 ── */
-#stc-chat-options-bar .stc-co-dir {
-    display: flex;
+/* ── 标题栏操作区 ── */
+#stc-chat-options-bar .stc-co-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+#stc-chat-options-bar .stc-co-act,
+#stc-chat-options-bar .stc-co-collapse {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 5px;
     min-height: 32px;
-    padding: 6px 8px;
-    border-radius: 9px;
-    font-size: 0.72em;
-    opacity: 0.85;
+    box-sizing: border-box;
+    padding: 4px 10px;
+    border: 1px solid var(--stc-border);
+    border-radius: 10px;
     color: var(--stc-fg);
-    background: var(--stc-bg);
-    border: 1px dashed var(--stc-border);
+    background: var(--stc-card);
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
-    user-select: none;
     white-space: nowrap;
-    overflow: hidden;
-    transition: border-color 0.15s ease, filter 0.15s ease;
+    flex: 0 0 auto;
+    transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
 }
-#stc-chat-options-bar .stc-co-dir:hover { border-color: var(--stc-hover); filter: brightness(1.08); opacity: 1; }
-#stc-chat-options-bar .stc-co-dir.active { border-style: solid; border-color: var(--stc-hover); opacity: 1; }
-#stc-chat-options-bar .stc-co-dir .stc-co-dir-text { overflow: hidden; text-overflow: ellipsis; }
+#stc-chat-options-bar .stc-co-act:hover,
+#stc-chat-options-bar .stc-co-collapse:hover {
+    border-color: var(--stc-border-hover);
+    background: var(--stc-card-hover);
+}
+#stc-chat-options-bar .stc-co-act:active,
+#stc-chat-options-bar .stc-co-collapse:active { transform: scale(0.98); }
+#stc-chat-options-bar .stc-co-act:disabled { opacity: 0.6; cursor: default; }
+#stc-chat-options-bar .stc-co-act.is-active {
+    border-color: var(--stc-border-hover);
+    color: var(--stc-accent-light);
+}
 
-/* ── 新增:内嵌方向输入行 ── */
+#stc-chat-options-bar .stc-co-collapse-icon {
+    display: inline-block;
+    color: var(--stc-muted);
+    font-size: 10px;
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+#stc-chat-options-bar.is-collapsed .stc-co-collapse-icon { transform: rotate(-90deg); }
+
+/* ── 选项列表 ── */
+#stc-chat-options-bar .stc-co-region { padding: 12px 14px; }
+#stc-chat-options-bar .stc-co-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+#stc-chat-options-bar .stc-co-list > li {
+    opacity: 0;
+    transform: translateY(4px);
+    animation: stc-co-arrive 240ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    animation-delay: var(--delay, 0ms);
+}
+@keyframes stc-co-arrive { to { opacity: 1; transform: translateY(0); } }
+
+#stc-chat-options-bar .stc-co-btn {
+    position: relative;
+    width: 100%;
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 18px;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    overflow: hidden;
+    border: 1px solid var(--stc-border);
+    border-radius: 10px;
+    color: var(--stc-fg);
+    background: var(--stc-card);
+    cursor: pointer;
+    text-align: left;
+    box-sizing: border-box;
+    transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+#stc-chat-options-bar .stc-co-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: transparent;
+    transition: background 150ms ease;
+}
+#stc-chat-options-bar .stc-co-btn:hover {
+    border-color: var(--stc-border-hover);
+    background: var(--stc-card-hover);
+    transform: translateY(-1px);
+}
+#stc-chat-options-bar .stc-co-btn:hover::after,
+#stc-chat-options-bar .stc-co-btn.is-selected::after { background: var(--stc-accent-light); }
+#stc-chat-options-bar .stc-co-btn:active { transform: translateY(0) scale(0.995); }
+#stc-chat-options-bar .stc-co-btn.is-selected {
+    border-color: var(--stc-accent-light);
+    background: var(--stc-card-selected);
+}
+#stc-chat-options-bar .stc-co-num {
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    color: var(--stc-muted);
+    background: color-mix(in srgb, var(--stc-fg) 6%, transparent);
+    font: 600 10px/1 ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    transition: color 150ms ease, background 150ms ease;
+}
+#stc-chat-options-bar .stc-co-btn:hover .stc-co-num,
+#stc-chat-options-bar .stc-co-btn.is-selected .stc-co-num {
+    color: #ffffff;
+    background: var(--stc-accent);
+}
+#stc-chat-options-bar .stc-co-text {
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+#stc-chat-options-bar .stc-co-arrow {
+    color: var(--stc-muted);
+    font-size: 16px;
+    line-height: 1;
+    text-align: center;
+    opacity: 0.45;
+    transition: color 150ms ease, opacity 150ms ease, transform 150ms ease;
+}
+#stc-chat-options-bar .stc-co-btn:hover .stc-co-arrow,
+#stc-chat-options-bar .stc-co-btn.is-selected .stc-co-arrow {
+    color: var(--stc-accent-light);
+    opacity: 1;
+    transform: translateX(2px);
+}
+
+/* 生成中 / 入口 / 失败占位框 */
+#stc-chat-options-bar .stc-co-empty {
+    min-height: 88px;
+    display: grid;
+    place-items: center;
+    gap: 4px;
+    padding: 18px;
+    border: 1px dashed var(--stc-border);
+    border-radius: 10px;
+    color: var(--stc-muted);
+    background: color-mix(in srgb, var(--stc-fg) 2%, transparent);
+    font-size: 11px;
+    text-align: center;
+}
+#stc-chat-options-bar .stc-co-empty strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--stc-fg);
+    font-size: 12px;
+}
+#stc-chat-options-bar .stc-co-empty.is-clickable { cursor: pointer; }
+#stc-chat-options-bar .stc-co-empty.is-clickable:hover {
+    border-color: var(--stc-border-hover);
+    color: var(--stc-fg);
+}
+#stc-chat-options-bar .stc-co-empty.is-error strong { color: var(--stc-danger); }
+
+/* ── 状态栏 ── */
+#stc-chat-options-bar .stc-co-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 16px 10px;
+    border-top: 1px solid color-mix(in srgb, var(--stc-fg) 4%, transparent);
+    color: var(--stc-muted);
+    font-size: 10px;
+}
+#stc-chat-options-bar .stc-co-status {
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#stc-chat-options-bar .stc-co-status.is-error { color: var(--stc-danger); }
+
+/* ── 内嵌方向输入行 ── */
 #stc-chat-options-bar .stc-co-dir-row {
     display: flex;
     align-items: center;
     gap: 6px;
+    margin-top: 8px;
+    box-sizing: border-box;
     padding: 6px 8px;
-    border-radius: 9px;
-    background: var(--stc-bg);
+    border-radius: 10px;
+    background: var(--stc-card);
     border: 1px solid var(--stc-border);
 }
 #stc-chat-options-bar .stc-co-dir-input {
     flex: 1;
     min-width: 0;
-    background: var(--stc-num-bg);
+    box-sizing: border-box;
+    background: color-mix(in srgb, var(--stc-fg) 5%, transparent);
     color: var(--stc-fg);
     border: 1px solid var(--stc-border);
-    border-radius: 7px;
-    padding: 5px 9px;
-    font-size: 0.8em;
+    border-radius: 8px;
+    padding: 6px 9px;
+    font-size: 12px;
     font-family: inherit;
     outline: none;
 }
-#stc-chat-options-bar .stc-co-dir-input:focus { border-color: var(--stc-hover); }
-#stc-chat-options-bar .stc-co-dir-input::placeholder { color: var(--stc-fg); opacity: 0.35; }
+#stc-chat-options-bar .stc-co-dir-input:focus { border-color: var(--stc-border-hover); }
+#stc-chat-options-bar .stc-co-dir-input::placeholder { color: var(--stc-muted); }
 #stc-chat-options-bar .stc-co-dir-act {
     flex-shrink: 0;
-    width: 28px; height: 28px;
-    border-radius: 7px;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--stc-num-bg);
-    color: var(--stc-fg);
-    border: 1px solid var(--stc-border);
-    cursor: pointer;
-    font-size: 0.85em;
-    user-select: none;
-}
-#stc-chat-options-bar .stc-co-dir-act:hover { border-color: var(--stc-hover); filter: brightness(1.1); }
-#stc-chat-options-bar .stc-co-dir-act.ok { color: #58d68d; }
-#stc-chat-options-bar .stc-co-dir-act.no { color: var(--stc-danger); }
-
-/* 换一批 */
-#stc-chat-options-bar .stc-co-refresh {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 6px 8px;
-    border-radius: 9px;
-    font-size: 0.72em;
-    opacity: 0.5;
+    background: transparent;
+    color: var(--stc-muted);
+    border: 1px solid var(--stc-border);
     cursor: pointer;
     user-select: none;
-    color: var(--stc-fg);
-    background: var(--stc-bg);
-    border: 1px dashed transparent;
-    transition: opacity 0.15s ease;
+    font-size: 0.85em;
 }
-#stc-chat-options-bar .stc-co-refresh:hover { opacity: 1; }
+#stc-chat-options-bar .stc-co-dir-act:hover {
+    border-color: var(--stc-border-hover);
+    color: var(--stc-fg);
+}
+#stc-chat-options-bar .stc-co-dir-ok { color: #58d68d; }
+#stc-chat-options-bar .stc-co-dir-cancel { color: var(--stc-danger); }
 
-/* 生成中 spinner */
+/* 生成中 spinner(预览页无 FontAwesome,用 CSS 圆环代替) */
 .stc-spin {
-    width: 13px; height: 13px;
+    width: 13px;
+    height: 13px;
     border: 2px solid var(--stc-border);
     border-top-color: var(--stc-fg);
     border-radius: 50%;
@@ -294,26 +437,33 @@ body.t-light #stc-chat-options-bar {
 
 /* ── 手机端窄屏(真实页面用 @media (max-width:768px),预览用容器查询模拟) ── */
 @container (max-width: 480px) {
-    #stc-chat-options-bar { width: calc(100% - 10px); gap: 5px; }
-    #stc-chat-options-bar .stc-co-pair .stc-co-main-btn { min-height: 40px; }
-    #stc-chat-options-bar .stc-co-pair .stc-co-dir { min-height: 40px; padding: 6px; }
-    #stc-chat-options-bar .stc-co-dir .stc-co-dir-text { display: none; } /* 只留图标 */
-    #stc-chat-options-bar .stc-co-btn { padding: 8px 10px; gap: 8px; min-height: 40px; }
-    #stc-chat-options-bar .stc-co-main { font-size: 0.84em; }
+    #stc-chat-options-bar { width: calc(100% - 10px); margin: 6px auto; border-radius: 14px; }
+    #stc-chat-options-bar .stc-co-header { grid-template-columns: 1fr; gap: 8px; padding: 11px 12px; }
+    #stc-chat-options-bar .stc-co-actions { width: 100%; flex-wrap: wrap; justify-content: flex-end; }
+    #stc-chat-options-bar .stc-co-act span { display: none; }
+    #stc-chat-options-bar .stc-co-act,
+    #stc-chat-options-bar .stc-co-collapse { height: 34px; padding: 0 9px; }
+    #stc-chat-options-bar .stc-co-region { padding: 10px; }
+    #stc-chat-options-bar .stc-co-btn {
+        grid-template-columns: 26px minmax(0, 1fr) 14px;
+        gap: 8px;
+        min-height: 44px;
+    }
+    #stc-chat-options-bar .stc-co-text { font-size: 12px; }
+    #stc-chat-options-bar .stc-co-footer { padding-inline: 12px; }
     #stc-chat-options-bar .stc-co-dir-input { min-height: 34px; font-size: 0.9em; }
     #stc-chat-options-bar .stc-co-dir-act { width: 36px; height: 36px; }
-    #stc-chat-options-bar .stc-co-dir-row { padding: 5px 6px; }
 }
 </style>
 </head>
 <body class="t-dark">
 
 <div class="preview-header">
-    <h1>🧭 「生成方向」按钮效果预览</h1>
+    <h1>💬 「回应选项」面板预览</h1>
     <p>
-        底部为模拟的聊天选项框:主按钮宽度 88%,右侧新增 12% 宽的「生成方向」按钮。
-        点击「生成方向」在选项框内展开输入行,回车或点 ✓ 确认后<b>立即按方向生成</b>;
-        留空确认 = 清除方向。「换一批」沿用当前方向。
+        选项框渲染为独立面板:标题栏(标题 + 计数徽章 + 操作区)、编号选项卡片、底部状态栏。
+        标题栏可切换「覆盖填入 / 追加内容」,点标题或「收起」折叠面板;点选项卡片高亮并填入输入框;
+        「生成方向」在标题栏,展开输入行后回车或点 ✓ 确认即<b>立即按方向生成</b>。
     </p>
     <div class="toolbar">
         <div class="grp" id="grpView">
@@ -344,12 +494,12 @@ body.t-light #stc-chat-options-bar {
         我把斗篷搭上肩头,「天亮之前,我一定回来。」
     </div>
 
-    <!-- 选项框(由 JS 渲染) -->
+    <!-- 选项面板(由 JS 渲染) -->
     <div id="stc-chat-options-bar"></div>
 </div>
 
 <script>
-/* ======== 模拟 renderBar 逻辑(与 index.js 改造方案一致) ======== */
+/* ======== 模拟 renderBar 逻辑(与 index.js 保持同步) ======== */
 const bar = document.getElementById('stc-chat-options-bar');
 const statusEl = document.getElementById('status');
 
@@ -359,11 +509,15 @@ const state = {
     editing: false,      // 方向输入行是否展开
     options: [],
     error: '',
+    append: false,       // 覆盖填入(false)/ 追加内容(true)
+    collapsed: false,    // 面板折叠
+    selected: '',        // 当前高亮选项
 };
 
-const ICON_WAND = '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M2.7 21.3a1.2 1.2 0 0 1 0-1.7L13.2 9.1l1.7 1.7L4.4 21.3a1.2 1.2 0 0 1-1.7 0z"/><path d="M18.5 2l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/><path d="M15.5 12.5l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z"/></svg>';
-const ICON_COMPASS = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M15.8 8.2l-2.3 5.3-5.3 2.3 2.3-5.3z" fill="currentColor" stroke="none"/></svg>';
+const ICON_WAND = '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M2.7 21.3a1.2 1.2 0 0 1 0-1.7L13.2 9.1l1.7 1.7L4.4 21.3a1.2 1.2 0 0 1-1.7 0z"/><path d="M18.5 2l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/><path d="M15.5 12.5l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z"/></svg>';
+const ICON_COMPASS = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M15.8 8.2l-2.3 5.3-5.3 2.3 2.3-5.3z" fill="currentColor" stroke="none"/></svg>';
 const ICON_RETRY = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3v4h-4"/></svg>';
+const ICON_CHEVRON = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 9l7 7 7-7"/></svg>';
 
 const FAKE_OPTIONS = {
     suspense: ['追问项链的来历', '暗中跟踪她今晚的去向', '翻看她留下的旧信件', '假装熟睡,观察动静', '去问更夫昨晚看见了什么'],
@@ -384,32 +538,45 @@ function esc(t) {
     return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-/* 主按钮行 + 方向按钮 → 并排容器 */
-function buildPair(mainHtml, mainClass) {
-    const pair = document.createElement('div');
-    pair.className = 'stc-co-pair';
-    const main = document.createElement('div');
-    main.className = mainClass + ' stc-co-main-btn';
-    main.innerHTML = mainHtml;
-    const dir = document.createElement('div');
-    dir.className = 'stc-co-dir' + (state.direction ? ' active' : '');
-    dir.title = state.direction ? `当前方向:${state.direction}` : '设置本次生成选项的方向';
-    dir.innerHTML = ICON_COMPASS + '<span class="stc-co-dir-text">生成方向</span>';
-    dir.addEventListener('click', () => { state.editing = !state.editing; render(); });
-    pair.appendChild(main);
-    pair.appendChild(dir);
-    return pair;
+function makeRow(cls) {
+    const row = document.createElement('div');
+    row.className = cls;
+    return row;
+}
+
+function buildHeaderAction({ icon, label, title, active = false, disabled = false, onClick }) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'stc-co-act' + (active ? ' is-active' : '');
+    btn.title = title;
+    if (disabled) btn.disabled = true;
+    btn.innerHTML = icon + `<span>${label}</span>`;
+    btn.addEventListener('click', onClick);
+    return btn;
+}
+
+function buildCollapseButton() {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'stc-co-collapse';
+    const label = document.createElement('span');
+    label.textContent = state.collapsed ? '展开' : '收起';
+    const icon = document.createElement('span');
+    icon.className = 'stc-co-collapse-icon';
+    icon.innerHTML = ICON_CHEVRON;
+    btn.append(label, icon);
+    btn.addEventListener('click', () => { state.collapsed = !state.collapsed; render(); });
+    return btn;
 }
 
 function buildDirInputRow() {
-    const row = document.createElement('div');
-    row.className = 'stc-co-dir-row';
+    const row = makeRow('stc-co-dir-row');
     row.innerHTML = `
         <input class="stc-co-dir-input" type="text" maxlength="200"
             placeholder="输入生成方向,如:往悬疑方向…(留空清除)"
             value="${esc(state.direction)}" />
-        <div class="stc-co-dir-act ok" title="确认:保存方向并立即生成">✓</div>
-        <div class="stc-co-dir-act no" title="取消">✕</div>`;
+        <div class="stc-co-dir-act stc-co-dir-ok" title="确认:保存方向并立即生成">✓</div>
+        <div class="stc-co-dir-act stc-co-dir-cancel" title="取消">✕</div>`;
     const input = row.querySelector('.stc-co-dir-input');
     const confirm = () => {
         const v = input.value.trim();
@@ -417,8 +584,8 @@ function buildDirInputRow() {
         state.editing = false;
         if (v) { generate(); } else { render(); }
     };
-    row.querySelector('.ok').addEventListener('click', confirm);
-    row.querySelector('.no').addEventListener('click', () => { state.editing = false; render(); });
+    row.querySelector('.stc-co-dir-ok').addEventListener('click', confirm);
+    row.querySelector('.stc-co-dir-cancel').addEventListener('click', () => { state.editing = false; render(); });
     input.addEventListener('keydown', e => {
         if (e.key === 'Enter') confirm();
         if (e.key === 'Escape') { state.editing = false; render(); }
@@ -428,58 +595,129 @@ function buildDirInputRow() {
 }
 
 function buildOptionRow(seq, text) {
-    const el = document.createElement('div');
-    el.className = 'stc-co-btn';
-    el.innerHTML = `<div class="stc-co-num">${seq}</div><div class="stc-co-main">${esc(text)}</div>`;
-    el.addEventListener('click', () => alert('【演示】点击选项 → 填入酒馆输入框:\n' + text));
-    return el;
+    const item = document.createElement('li');
+    item.style.setProperty('--delay', `${Math.min((seq - 1) * 35, 210)}ms`);
+    const btn = makeRow('stc-co-btn');
+    if (state.selected === text) btn.classList.add('is-selected');
+    btn.innerHTML = `<span class="stc-co-num">${String(seq).padStart(2, '0')}</span><span class="stc-co-text">${esc(text)}</span><span class="stc-co-arrow">›</span>`;
+    btn.addEventListener('click', () => {
+        if (!state.append) {
+            bar.querySelectorAll('.stc-co-btn.is-selected').forEach(el => el.classList.remove('is-selected'));
+            state.selected = '';
+        }
+        btn.classList.add('is-selected');
+        state.selected = text;
+        alert('【演示】点击选项 → ' + (state.append ? '追加' : '覆盖') + '到酒馆输入框:\n' + text);
+    });
+    item.appendChild(btn);
+    return item;
+}
+
+function buildStateBox(kind) {
+    const clickable = kind !== 'generating';
+    const box = makeRow('stc-co-empty' + (kind === 'error' ? ' is-error' : '') + (clickable ? ' is-clickable' : ''));
+    const strong = document.createElement('strong');
+    const detail = document.createElement('span');
+    if (kind === 'generating') {
+        strong.innerHTML = '<span class="stc-spin"></span>正在生成选项…';
+        detail.textContent = 'AI 正在阅读最新剧情,请稍候';
+    } else if (kind === 'error') {
+        strong.textContent = `生成失败:${state.error}`;
+        detail.textContent = '点击此处重试,或在右上角修改生成方向';
+        box.title = '点击重试';
+    } else {
+        strong.innerHTML = ICON_WAND + '还没有生成选项';
+        detail.textContent = '点击此处立即生成,或先设定生成方向';
+        box.title = '点击生成选项';
+    }
+    box.append(strong, detail);
+    if (clickable) box.addEventListener('click', generate);
+    return box;
 }
 
 function render() {
     bar.innerHTML = '';
+    bar.classList.toggle('is-collapsed', state.collapsed);
     state.editing = state.editing && state.phase !== 'generating';
 
+    /* ── 标题栏 ── */
+    const header = makeRow('stc-co-header');
+    const titleBlock = makeRow('stc-co-titleblock');
+    titleBlock.title = '点击折叠或展开选项面板';
+    const titleRow = makeRow('stc-co-title-row');
+    titleRow.innerHTML = `<span class="stc-co-title">回应选项</span><span class="stc-co-badge">${state.phase === 'generating' ? '…' : state.options.length}</span>`;
+    titleBlock.appendChild(titleRow);
+    titleBlock.addEventListener('click', () => { state.collapsed = !state.collapsed; render(); });
+    header.appendChild(titleBlock);
+
+    const actions = makeRow('stc-co-actions');
+    // 生成入口常驻标题栏:未生成=生成选项,有选项=换一批,失败=重试,生成中置灰
     if (state.phase === 'generating') {
-        const row = document.createElement('div');
-        row.className = 'stc-co-state';
-        row.innerHTML = '<span class="stc-spin"></span><span>正在生成选项…</span>';
-        bar.appendChild(row);
-        updateStatus();
-        return;
+        const genBtn = buildHeaderAction({
+            icon: '<span class="stc-spin"></span>', label: '生成中', title: '正在生成选项…',
+        });
+        genBtn.disabled = true;
+        actions.appendChild(genBtn);
+    } else {
+        actions.appendChild(buildHeaderAction({
+            icon: (state.options.length || state.phase === 'error') ? ICON_RETRY : ICON_WAND,
+            label: state.phase === 'error' ? '重试' : (state.options.length ? '换一批' : '生成选项'),
+            title: state.phase === 'error' ? '重新生成选项' : (state.options.length ? '重新生成一批选项' : '根据最新剧情生成选项'),
+            onClick: generate,
+        }));
     }
+    actions.appendChild(buildHeaderAction({
+        icon: ICON_COMPASS, label: '生成方向',
+        title: state.direction ? `当前方向:${state.direction}(点击修改)` : '设置本次生成选项的方向',
+        active: Boolean(state.direction),
+        onClick: () => { state.editing = !state.editing; render(); },
+    }));
+    actions.appendChild(buildCollapseButton());
+    header.appendChild(actions);
+    bar.appendChild(header);
 
-    if (state.phase === 'error') {
-        const pair = buildPair(
-            `<span style="color:var(--stc-danger)">生成失败:${esc(state.error)},点击重试</span>`,
-            'stc-co-state stc-co-error');
-        pair.querySelector('.stc-co-main-btn').addEventListener('click', generate);
-        bar.appendChild(pair);
-        if (state.editing) bar.appendChild(buildDirInputRow());
-        updateStatus();
-        return;
+    /* ── 主体 ── */
+    const body = makeRow('stc-co-body');
+    body.id = 'stc-co-panel-body';
+    const region = makeRow('stc-co-region');
+    if (state.phase === 'generating') {
+        region.appendChild(buildStateBox('generating'));
+    } else if (state.phase === 'error') {
+        region.appendChild(buildStateBox('error'));
+    } else if (!state.options.length) {
+        region.appendChild(buildStateBox('entry'));
+    } else {
+        const list = document.createElement('ol');
+        list.className = 'stc-co-list';
+        state.options.forEach((t, i) => list.appendChild(buildOptionRow(i + 1, t)));
+        region.appendChild(list);
     }
+    if (state.editing) region.appendChild(buildDirInputRow());
+    body.appendChild(region);
+    bar.appendChild(body);
 
-    if (state.phase === 'entry') {
-        const pair = buildPair(ICON_WAND + '<span>生成选项</span>', 'stc-co-state stc-co-entry');
-        pair.querySelector('.stc-co-main-btn').addEventListener('click', generate);
-        bar.appendChild(pair);
-        if (state.editing) bar.appendChild(buildDirInputRow());
-        updateStatus();
-        return;
-    }
+    /* ── 状态栏 ── */
+    const hasError = state.phase === 'error';
+    const footer = makeRow('stc-co-footer');
+    const count = document.createElement('span');
+    count.textContent = state.phase === 'generating'
+        ? '正在生成…'
+        : state.options.length ? `共 ${state.options.length} 项` : '暂无可用选项';
+    const status = document.createElement('span');
+    status.className = 'stc-co-status' + (hasError ? ' is-error' : '');
+    status.textContent = hasError ? '生成失败,点击面板重试' : (state.editing ? '正在编辑生成方向' : '就绪');
+    footer.append(count, status);
+    bar.appendChild(footer);
 
-    // done:选项卡片 + 换一批 + 生成方向
-    state.options.forEach((t, i) => bar.appendChild(buildOptionRow(i + 1, t)));
-    const pair = buildPair(ICON_RETRY + '<span>换一批</span>', 'stc-co-refresh');
-    pair.querySelector('.stc-co-main-btn').addEventListener('click', generate);
-    bar.appendChild(pair);
-    if (state.editing) bar.appendChild(buildDirInputRow());
     updateStatus();
 }
 
 function generate() {
     if (state.phase === 'generating') return;
     state.phase = 'generating';
+    state.options = []; // 与真实行为一致:生成开始即清空上一轮选项
+    state.selected = '';
+    state.editing = false;
     render();
     setTimeout(() => {
         state.phase = 'done';
@@ -492,6 +730,7 @@ function updateStatus() {
     statusEl.innerHTML =
         `状态:<b>${ {entry:'未生成', generating:'生成中', done:'已生成', error:'生成失败'}[state.phase] }</b> · ` +
         `当前方向:<b>${ state.direction ? esc(state.direction) : '(未设置)' }</b> · ` +
+        `填入方式:<b>${ state.append ? '追加内容' : '覆盖填入' }</b> · ` +
         `注入提示词:<b>${ state.direction ? '请围绕以下方向生成选项:' + esc(state.direction) : '(无方向附加)' }</b>`;
 }
 
@@ -504,11 +743,16 @@ document.getElementById('grpView').addEventListener('click', e => {
 document.getElementById('grpTheme').addEventListener('click', e => {
     const btn = e.target.closest('button'); if (!btn) return;
     document.querySelectorAll('#grpTheme button').forEach(b => b.classList.toggle('on', b === btn));
-    document.body.className = 't-' + btn.dataset.theme;
+    const theme = btn.dataset.theme;
+    document.body.className = 't-' + theme;
+    bar.classList.toggle('stc-theme-dark', theme === 'dark');
+    bar.classList.toggle('stc-theme-light', theme === 'light');
 });
 document.getElementById('btnError').addEventListener('click', () => {
     state.phase = 'error';
     state.error = 'HTTP 401';
+    state.options = [];
+    state.selected = '';
     render();
 });
 document.getElementById('btnClearDir').addEventListener('click', () => {
