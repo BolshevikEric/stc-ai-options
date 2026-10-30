@@ -13,13 +13,15 @@ import {
     extension_prompt_roles,
     MAX_INJECTION_DEPTH,
 } from '../../../../script.js';
+// 命名空间引入:不同版本 script.js 的导出名有差异,避免命名导入缺失导致整个模块加载失败
+import * as stScript from '../../../../script.js';
 import { POPUP_TYPE, callGenericPopup } from '../../../popup.js';
 
 const MODULE_NAME = 'stc_chat_options';
 const LOG_PREFIX = '[STC Chat Options]';
 const JB_PROMPT_KEY = `${MODULE_NAME}_jailbreak`;
 // 模板版本号:更新 settings.html 后递增,绕开浏览器缓存
-const TEMPLATE_VERSION = '17';
+const TEMPLATE_VERSION = '19';
 const TEMPLATE_URL = `/scripts/extensions/third-party/stc-ai-options/settings.html?v=${TEMPLATE_VERSION}`;
 
 const DEFAULT_GEN_PROMPT = `你是一个互动式小说的选项生成器。阅读下面这段最新的剧情,为用户(玩家)生成 {{count}} 个下一步可能的行动或回复选项。
@@ -39,6 +41,10 @@ const defaultSettings = {
     auto: true,
     // 点击选项填充方式:false=覆盖输入框;true=追加到已有内容末尾
     inputAppend: false,
+    // 记住生成的选项:跟随 AI 消息分支存储,刷新/切换聊天后自动恢复
+    remember: true,
+    // 每个聊天最多保留多少条带选项的消息(1–50)
+    rememberLimit: 10,
     // 插件外观主题:仅作用于选项框,不改动酒馆本身的 UI 主题
     ui: {
         theme: 'auto', // 'auto' = 跟随酒馆主题;'dark' = 深色;'light' = 浅色
@@ -224,18 +230,26 @@ function clampInt(value, min, max, fallback) {
     return Math.min(max, Math.max(min, n));
 }
 
-function extractContent() {
+/**
+ * 找到最新一条真实 AI 发言。
+ * 跳过用户消息、系统消息与系统注入的 HTML 提示(如欢迎语、/help 输出)。
+ * 返回 { index, msg },没有则返回 null。
+ */
+function findLastAiMessage() {
     const chat = getContext().chat;
-    if (!Array.isArray(chat)) return '';
-    // 只取最新一条真实 AI 发言的原文;跳过用户消息、系统消息与系统注入的 HTML 提示(如欢迎语、/help 输出)
+    if (!Array.isArray(chat)) return null;
     for (let i = chat.length - 1; i >= 0; i--) {
         const m = chat[i];
         if (!m || m.is_user || m.is_system) continue;
         if (typeof m.mes !== 'string' || !m.mes.trim()) continue;
         if (m.name === 'SillyTavern System' || /^\s*<(div|button|span)\b/i.test(m.mes)) continue;
-        return m.mes.trim();
+        return { index: i, msg: m };
     }
-    return '';
+    return null;
+}
+
+function extractContent() {
+    return String(findLastAiMessage()?.msg?.mes ?? '').trim();
 }
 
 /**
@@ -430,11 +444,183 @@ function parseOptions(reply, count) {
     return list;
 }
 
+// ── 选项存储:跟随 AI 消息分支 ──────────────────────────────
+// 选项写在「生成它时最新那条 AI 消息」的当前 swipe 分支上:
+//   msg.swipe_info[msg.swipe_id].extra.stc_chat_options(旧版本无 swipe_info 时退回 msg.extra)
+// 因此每个分支各自独立,swipe 到别的分支会显示那一条分支的选项;
+// 每个聊天保留最近 N 条带选项的消息,更老的整条清除;N 可在设置里改
+
+const OPTIONS_KEY = 'stc_chat_options';
+const OPTIONS_STORE_VERSION = 1;
+const REMEMBER_LIMIT_MIN = 1;
+const REMEMBER_LIMIT_MAX = 50;
+const REMEMBER_LIMIT_DEFAULT = 10;
+
+/** 当前生效的保留条数(读设置并夹在 1–50)。 */
+function optionHistoryLimit() {
+    return clampInt(settings.rememberLimit, REMEMBER_LIMIT_MIN, REMEMBER_LIMIT_MAX, REMEMBER_LIMIT_DEFAULT);
+}
+
+let persistTimer = null;
+
+/**
+ * 取当前分支的存储槽。
+ * 优先 swipe_info[swipe_id].extra;旧版本没有 swipe_info 时退回消息级 extra。
+ * create=false 时只读,绝不改动消息对象。
+ */
+function getSwipeSlot(msg, { create = false } = {}) {
+    if (!msg) return null;
+    const swipeId = Number.isInteger(msg.swipe_id) ? msg.swipe_id : 0;
+    if (Array.isArray(msg.swipe_info)) {
+        let slot = msg.swipe_info[swipeId];
+        if (!slot || typeof slot !== 'object') {
+            if (!create) return null;
+            slot = msg.swipe_info[swipeId] = {};
+        }
+        if (!slot.extra || typeof slot.extra !== 'object') {
+            if (!create) return null;
+            slot.extra = {};
+        }
+        return slot;
+    }
+    if (!msg.extra || typeof msg.extra !== 'object') {
+        if (!create) return null;
+        msg.extra = {};
+    }
+    return msg;
+}
+
+/** 当前分支签名:消息下标 + 分支号 + 正文前 120 字。正文被编辑或换分支都会失配。 */
+function branchSignature(found) {
+    if (!found) return '';
+    const swipeId = Number.isInteger(found.msg.swipe_id) ? found.msg.swipe_id : 0;
+    return `${found.index}|${swipeId}|${String(found.msg.mes ?? '').slice(0, 120)}`;
+}
+
 function lastChatSignature() {
+    return branchSignature(findLastAiMessage());
+}
+
+/** 读取某个分支已存的选项数据;版本不符或结构损坏返回 null。 */
+function readStoredOptions(msg) {
+    const slot = getSwipeSlot(msg);
+    const data = slot?.extra?.[OPTIONS_KEY];
+    if (!data || data.v !== OPTIONS_STORE_VERSION) return null;
+    if (!Array.isArray(data.options) || !data.options.length) return null;
+    return data;
+}
+
+/** 把当前选项写入最新 AI 消息的当前分支。 */
+function writeStoredOptions() {
+    const found = findLastAiMessage();
+    if (!found) return;
+    const slot = getSwipeSlot(found.msg, { create: true });
+    if (!slot) return;
+    slot.extra[OPTIONS_KEY] = {
+        v: OPTIONS_STORE_VERSION,
+        options: lastOptions.slice(),
+        direction: String(lastDirection ?? ''),
+        selected: String(selectedOptionText ?? ''),
+        sig: branchSignature(found),
+        updatedAt: Date.now(),
+    };
+}
+
+/** 只保留最近 N 条带选项的消息,更老的整条(含所有分支)清除。 */
+function pruneStoredOptions() {
     const chat = getContext().chat;
-    const last = Array.isArray(chat) && chat.length ? chat[chat.length - 1] : null;
-    if (!last) return '';
-    return `${chat.length}|${String(last.mes ?? '').slice(0, 120)}`;
+    if (!Array.isArray(chat)) return;
+    let kept = 0;
+    for (let i = chat.length - 1; i >= 0; i--) {
+        const msg = chat[i];
+        if (!msg) continue;
+        const holders = [];
+        if (Array.isArray(msg.swipe_info)) {
+            for (const s of msg.swipe_info) {
+                if (s?.extra?.[OPTIONS_KEY]) holders.push(s);
+            }
+        }
+        if (msg.extra?.[OPTIONS_KEY]) holders.push(msg);
+        if (!holders.length) continue;
+        kept += 1;
+        if (kept > optionHistoryLimit()) {
+            for (const h of holders) {
+                delete h.extra[OPTIONS_KEY];
+                if (!Object.keys(h.extra).length) delete h.extra;
+            }
+        }
+    }
+}
+
+async function saveChatSafe() {
+    const fn = typeof stScript?.saveChat === 'function' ? stScript.saveChat : null;
+    if (!fn) {
+        console.warn(LOG_PREFIX, '当前版本未提供 saveChat,选项只在酒馆下次保存聊天时落盘');
+        return;
+    }
+    try {
+        await fn();
+    } catch (e) {
+        console.warn(LOG_PREFIX, '保存聊天失败:', e);
+    }
+}
+
+/**
+ * 落盘当前选项。生成成功后 immediate=true 立即写;
+ * 点选高亮这类高频操作走 800ms 防抖,避免每次点击都整份写聊天。
+ */
+function persistOptions({ immediate = false } = {}) {
+    if (!settings.remember || !lastOptions.length) return;
+    writeStoredOptions();
+    pruneStoredOptions();
+    if (persistTimer) {
+        clearTimeout(persistTimer);
+        persistTimer = null;
+    }
+    if (immediate) {
+        saveChatSafe();
+    } else {
+        persistTimer = setTimeout(() => {
+            persistTimer = null;
+            saveChatSafe();
+        }, 800);
+    }
+}
+
+function clearOptionsState() {
+    lastOptions = [];
+    lastError = null;
+    selectedOptionText = '';
+    lastGenSig = '';
+}
+
+/**
+ * 从当前分支恢复已存选项。
+ * 签名一致才回填(正文被编辑或分支对不上时视为失效);没有记录则清空面板。
+ */
+function restoreStoredOptions() {
+    if (!settings.remember) {
+        lastOptions = [];
+        lastError = null;
+        selectedOptionText = '';
+        lastGenSig = '';
+        return;
+    }
+    const found = findLastAiMessage();
+    const data = found ? readStoredOptions(found.msg) : null;
+    const sig = branchSignature(found);
+    if (data && sig && data.sig === sig) {
+        lastOptions = data.options.map(x => String(x ?? '').trim()).filter(Boolean);
+        const saved = String(data.selected ?? '');
+        selectedOptionText = lastOptions.includes(saved) ? saved : '';
+        lastError = null;
+        lastGenSig = sig; // 已有选项,不再重复自动生成
+        return;
+    }
+    lastOptions = [];
+    lastError = null;
+    selectedOptionText = '';
+    lastGenSig = '';
 }
 
 async function generateOptions({ manual = false } = {}) {
@@ -494,6 +680,7 @@ async function generateOptions({ manual = false } = {}) {
         lastOptions = list;
         lastGenSig = lastChatSignature();
         lastError = null;
+        persistOptions({ immediate: true });
     } catch (e) {
         console.error(LOG_PREFIX, 'Option generation failed:', e);
         lastError = e.message || String(e);
@@ -721,6 +908,7 @@ function buildOptionRow(seq, text) {
         btn.classList.add('is-selected');
         selectedOptionText = text;
         fillInput(text);
+        persistOptions(); // 记下高亮项,刷新后仍保留选中态
     });
     item.appendChild(btn);
     return item;
@@ -1076,6 +1264,37 @@ function wireSettingsContent($content) {
             toastr.success(settings.inputAppend ? '选项将追加到输入框末尾' : '选项将覆盖输入框内容');
         });
 
+    // ── 记住选项(跟随消息分支) ──
+    $content.find('#stc-co-remember')
+        .prop('checked', settings.remember !== false)
+        .on('change', function () {
+            settings.remember = $(this).prop('checked');
+            persist();
+            $content.find('#stc-co-remember-limit').prop('disabled', !settings.remember);
+            if (settings.remember) {
+                restoreStoredOptions();
+                persistOptions({ immediate: true });
+                toastr.success(`将记住选项:每个聊天最多保留最近 ${optionHistoryLimit()} 条消息,分支各自独立`);
+            } else {
+                toastr.success('不再记住选项(已写入聊天的数据保留,可随时重新开启)');
+            }
+            renderBar();
+        });
+
+    const $rememberLimit = $content.find('#stc-co-remember-limit');
+    $rememberLimit
+        .val(optionHistoryLimit())
+        .prop('disabled', !settings.remember)
+        .on('change', function () {
+            settings.rememberLimit = clampInt($(this).val(), REMEMBER_LIMIT_MIN, REMEMBER_LIMIT_MAX, REMEMBER_LIMIT_DEFAULT);
+            $(this).val(settings.rememberLimit);
+            persist();
+            // 调小上限立即裁剪已存数据
+            pruneStoredOptions();
+            if (settings.remember) saveChatSafe();
+            toastr.success(`每个聊天最多保留最近 ${settings.rememberLimit} 条消息的选项`);
+        });
+
     // ── 插件主题:仅控制选项框外观,不改动酒馆本身的 UI 主题 ──
     $content.find('#stc-co-ui-theme')
         .val(settings.ui?.theme ?? 'auto')
@@ -1188,18 +1407,26 @@ jQuery(async () => {
     initSettings();
     applyJailbreakInjection();
     injectWandButton();
+    restoreStoredOptions(); // 页面加载后恢复当前分支已存的选项
     renderBar();
     observeChat();
 
     eventSource.on(event_types.CHAT_CHANGED, () => {
-        // 切换聊天后清空旧选项,等下一次生成
-        lastOptions = [];
-        lastError = null;
-        lastGenSig = '';
-        selectedOptionText = '';
+        // 切换聊天:先清空,再尝试从新聊天的最后一条消息恢复已存选项
+        clearOptionsState();
+        restoreStoredOptions();
         renderBar();
     });
     eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
+
+    // 分支切换 / 删除 / 编辑消息后,按新的当前分支重新取选项
+    const syncFromMessage = () => {
+        restoreStoredOptions();
+        renderBar();
+    };
+    if (event_types.MESSAGE_SWIPED) eventSource.on(event_types.MESSAGE_SWIPED, syncFromMessage);
+    if (event_types.MESSAGE_DELETED) eventSource.on(event_types.MESSAGE_DELETED, syncFromMessage);
+    if (event_types.MESSAGE_EDITED) eventSource.on(event_types.MESSAGE_EDITED, syncFromMessage);
 
     console.log(LOG_PREFIX, 'loaded');
 });
