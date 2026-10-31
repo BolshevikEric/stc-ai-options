@@ -80,7 +80,10 @@ let $optionsBar = null;
 let lastOptions = [];   // 当前渲染的 AI 生成选项
 let lastError = null;   // 最近一次生成失败的错误信息
 let generating = false; // 是否正在生成
-let lastGenSig = '';    // 上次生成选项时"最后一条消息"的签名,防止重复/自触发
+let generatingSince = 0; // 本次生成开始的时间戳,用于超时自愈
+// 请求卡死时不能让 generating 永远为 true:那样手动「换一批」会被直接 return 掉,
+// 面板就一直停在上一批选项上。
+const GENERATION_TIMEOUT_MS = 180000;
 let lastDirection = ''; // 用户设置的生成方向(会话内有效,空=不限定)
 let dirEditing = false; // 方向输入行是否展开
 let barCollapsed = false;    // 选项面板是否折叠(会话内有效)
@@ -481,10 +484,6 @@ function branchSignature(found) {
     return `${getSwipeId(found.msg)}|${String(found.msg.mes ?? '').slice(0, 120)}`;
 }
 
-function lastChatSignature() {
-    return branchSignature(findLastAiMessage());
-}
-
 /**
  * 兼容 0.5.1:那一版把数据写进了 swipe_info[swipe_id].extra。
  * 当前分支还在、签名对得上就搬到 msg.extra,并清掉旧位置。
@@ -601,7 +600,6 @@ function clearOptionsState() {
     lastOptions = [];
     lastError = null;
     selectedOptionText = '';
-    lastGenSig = '';
 }
 
 /**
@@ -613,7 +611,6 @@ function restoreStoredOptions() {
         lastOptions = [];
         lastError = null;
         selectedOptionText = '';
-        lastGenSig = '';
         return;
     }
     const found = findLastAiMessage();
@@ -625,17 +622,27 @@ function restoreStoredOptions() {
         const saved = String(data.selected ?? '');
         selectedOptionText = lastOptions.includes(saved) ? saved : '';
         lastError = null;
-        lastGenSig = sig; // 已有选项,不再重复自动生成
         return;
     }
     lastOptions = [];
     lastError = null;
     selectedOptionText = '';
-    lastGenSig = '';
+}
+
+/** 当前这条分支是否已经有选项(以消息里的实际存储为准,不依赖内存标记)。 */
+function hasStoredOptionsForCurrentBranch() {
+    const found = findLastAiMessage();
+    if (!found) return false;
+    const data = readStoredOptions(found.msg);
+    return Boolean(data) && data.sig === branchSignature(found);
 }
 
 async function generateOptions({ manual = false } = {}) {
-    if (generating) return;
+    if (generating) {
+        // 请求卡住时不能永久锁死,否则手动「换一批」会被直接 return,面板停在旧选项
+        if (Date.now() - generatingSince < GENERATION_TIMEOUT_MS) return;
+        console.warn(LOG_PREFIX, '上一次选项生成超过 3 分钟未返回,已强制重置生成状态');
+    }
     const context = getContext();
     if (!isChatLoaded() || !context.chat.length) {
         if (manual) toastr.warning('当前没有聊天内容,无法生成选项');
@@ -643,6 +650,7 @@ async function generateOptions({ manual = false } = {}) {
     }
 
     generating = true;
+    generatingSince = Date.now();
     lastError = null;
     lastOptions = []; // 生成期间清空,避免失败时残留上一轮选项
     selectedOptionText = '';
@@ -689,15 +697,16 @@ async function generateOptions({ manual = false } = {}) {
         const list = parseOptions(reply, count);
         if (!list.length) throw new Error('AI 未返回有效选项,请调整生成指令后重试');
         lastOptions = list;
-        lastGenSig = lastChatSignature();
         lastError = null;
         persistOptions({ immediate: true });
+        console.debug(LOG_PREFIX, '选项已生成并写入当前分支', { count: list.length, index: findLastAiMessage()?.index });
     } catch (e) {
         console.error(LOG_PREFIX, 'Option generation failed:', e);
         lastError = e.message || String(e);
         if (manual) toastr.error(`选项生成失败:${lastError}`);
     } finally {
         generating = false;
+        generatingSince = 0;
         renderBar();
     }
 }
@@ -964,7 +973,7 @@ function renderBar({ force = false } = {}) {
     // 每次重建都让列表重播入场效果,看起来就是"选项不停闪烁"。
     const key = JSON.stringify([
         settings.enabled, settings.ui?.theme, barCollapsed, generating,
-        dirEditing, lastError, lastDirection, lastOptions,
+        dirEditing, lastError, lastDirection, lastOptions, selectedOptionText,
     ]);
     if (!force && key === lastRenderKey) {
         bar.classList.toggle('is-collapsed', barCollapsed);
@@ -1101,12 +1110,25 @@ function observeChat() {
 // ── 自动生成触发 ──────────────────────────────────────────────
 
 async function onGenerationEnded() {
-    if (!settings.enabled || !settings.auto || generating) return;
+    if (!settings.enabled || generating) return;
     const chat = getContext().chat;
     if (!Array.isArray(chat) || !chat.length) return;
     const last = chat[chat.length - 1];
-    if (last?.is_user || last?.is_system) return; // 没有新的 AI 内容时不生成
-    if (lastChatSignature() === lastGenSig) return; // 同一条消息不重复生成
+    if (last?.is_user || last?.is_system) return; // 没有新的 AI 内容时不处理
+
+    // 判重以"这条分支实际存过选项"为准,不再靠内存里的签名:
+    // 内存签名一旦和当前消息撞上,就会永久跳过生成,面板便一直停在上一批旧选项。
+    if (hasStoredOptionsForCurrentBranch()) {
+        restoreStoredOptions(); // 对齐成这条分支的内容
+        renderBar();
+        return;
+    }
+    // 没存过选项:自动生成关闭时也要把面板清干净,避免残留上一条消息的选项
+    if (!settings.auto) {
+        restoreStoredOptions();
+        renderBar();
+        return;
+    }
     await generateOptions();
 }
 
