@@ -506,49 +506,252 @@
     flex: 1 1 auto;
 }
 
-.stc-co-settings .stc-wi-expand-btn {
-    margin-left: auto;
+/* 可折叠区块:收起态下整个卡片区域均可点击展开,展开后点击整行标题栏收起 */
+.stc-co-settings .stc-co-block.stc-co-collapsible {
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+}
+
+.stc-co-settings .stc-co-collapse-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 14px;
+    box-sizing: border-box;
+    font-weight: 600;
+    font-size: 0.95em;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease;
+}
+
+.stc-co-settings .stc-co-collapse-head:hover {
+    background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.stc-co-settings .stc-co-collapse-head:active {
+    background: color-mix(in srgb, currentColor 9%, transparent);
+}
+
+.stc-co-settings .stc-co-collapse-head:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: -2px;
+}
+
+.stc-co-settings .stc-co-collapse-head > span:first-of-type {
+    flex: 1 1 auto;
+}
+
+.stc-co-settings .stc-co-collapse-arrow {
+    font-size: 0.85em;
+    opacity: 0.75;
+    flex: 0 0 auto;
+    transition: transform 0.2s ease, opacity 0.15s ease;
+}
+
+/* 仅旋转当前层的折叠箭头,不穿透影响内嵌子模块的箭头 */
+.stc-co-settings .stc-co-collapsible.open > .stc-co-collapse-head .stc-co-collapse-arrow {
+    transform: rotate(180deg);
+    opacity: 1;
+}
+
+.stc-co-settings .stc-co-collapse-panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition: grid-template-rows 0.22s ease, opacity 0.18s ease;
+}
+
+.stc-co-settings .stc-co-collapsible.open > .stc-co-collapse-panel {
+    grid-template-rows: 1fr;
+    opacity: 1;
+}
+
+.stc-co-settings .stc-co-collapse-panel-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.stc-co-settings .stc-co-collapse-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 2px 14px 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stc-co-settings .stc-co-collapse-panel,
+    .stc-co-settings .stc-co-collapse-arrow {
+        transition: none;
+    }
+}
+
+/* ── 正则处理子模块 ─────────────────────────────────────────── */
+
+.stc-co-settings .stc-regex-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    background: color-mix(in srgb, currentColor 2%, transparent);
+}
+
+.stc-co-settings .stc-regex-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 10px;
+    font-weight: normal;
+    font-size: 1em;
+}
+
+.stc-co-settings .stc-regex-group-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.stc-co-settings .stc-regex-group-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.stc-co-settings .stc-regex-group-body {
+    padding: 0 10px 9px;
+}
+
+.stc-co-settings .stc-regex-group-title {
+    font-size: 0.88em;
+    font-weight: 600;
+}
+
+.stc-co-settings .stc-regex-group-desc {
+    font-size: 0.76em;
+    opacity: 0.6;
+}
+
+.stc-co-settings .stc-regex-add-btn {
     width: 28px;
     height: 28px;
+    min-width: 28px;
+    padding: 0;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.stc-co-settings .stc-regex-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.stc-co-settings .stc-regex-empty {
+    font-size: 0.78em;
+    opacity: 0.55;
+    padding: 4px 2px;
+}
+
+.stc-co-settings .stc-regex-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 7px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 7px;
+    background: var(--SmartThemeBlurTintColor);
+    transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.stc-co-settings .stc-regex-item.is-dragging {
+    opacity: 0.72;
+    border-color: #6366f1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.stc-co-settings .stc-regex-item.is-disabled .stc-regex-input {
+    opacity: 0.5;
+}
+
+.stc-co-settings .stc-regex-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 26px;
+    flex: 0 0 auto;
+    cursor: grab;
+    touch-action: none;
+    opacity: 0.55;
+    user-select: none;
+}
+
+.stc-co-settings .stc-regex-handle:hover,
+.stc-co-settings .stc-regex-item.is-dragging .stc-regex-handle {
+    opacity: 1;
+}
+
+.stc-co-settings .stc-regex-item.is-dragging .stc-regex-handle {
+    cursor: grabbing;
+}
+
+.stc-co-settings .stc-regex-seq {
+    font-size: 0.76em;
+    font-family: var(--monoFontFamily, monospace);
+    opacity: 0.55;
+    min-width: 18px;
+    text-align: center;
+    flex: 0 0 auto;
+    user-select: none;
+}
+
+.stc-co-settings .stc-regex-enable {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.stc-co-settings .stc-regex-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--monoFontFamily, monospace);
+    font-size: 0.82em;
+    margin: 0;
+}
+
+.stc-co-settings .stc-regex-del-btn {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    padding: 0;
+    margin: 0;
     border: none;
-    border-radius: 0;
+    border-radius: 6px;
     background: transparent;
     color: inherit;
-    opacity: 0.75;
+    opacity: 0.6;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    padding: 0;
 }
 
-.stc-co-settings .stc-wi-expand-btn:hover {
+.stc-co-settings .stc-regex-del-btn:hover {
     opacity: 1;
+    color: var(--SmartThemeRedColor, #f85149);
     background: color-mix(in srgb, currentColor 8%, transparent);
-}
-
-.stc-co-settings .stc-wi-expand-btn i {
-    transition: transform 0.18s ease;
-    font-size: 0.85em;
-}
-
-.stc-co-settings .stc-wi-block.open .stc-wi-expand-btn {
-    opacity: 1;
-}
-
-.stc-co-settings .stc-wi-block.open .stc-wi-expand-btn i {
-    transform: rotate(180deg);
-}
-
-.stc-co-settings .stc-wi-body {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.stc-co-settings .stc-wi-body[hidden] {
-    display: none !important;
 }
 
 .stc-co-settings .stc-co-hint {
@@ -574,10 +777,84 @@
     justify-content: flex-end;
 }
 
-.stc-co-settings .stc-co-jb-text {
+.stc-co-settings .stc-co-test-row .menu_button {
+    white-space: nowrap;
+}
+
+/* ── 提示词配置模块 ─────────────────────────────────────────── */
+
+.stc-co-settings .stc-prompts-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.stc-co-settings .stc-prompts-reset-btn {
+    white-space: nowrap;
+    flex: 0 0 auto;
+    font-size: 0.8em;
+    padding: 4px 10px;
+    margin: 0;
+}
+
+.stc-co-settings .stc-prompts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.stc-co-settings .stc-prompt-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px 10px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    background: color-mix(in srgb, currentColor 2%, transparent);
+}
+
+.stc-co-settings .stc-prompt-item-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.85em;
+    font-weight: 600;
+    text-align: left;
+}
+
+.stc-co-settings .stc-role-badge {
+    font-family: var(--monoFontFamily, monospace);
+    font-size: 0.74em;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 1px 6px;
+    border-radius: 4px;
+    flex: 0 0 auto;
+}
+
+.stc-co-settings .stc-role-badge.is-system {
+    background: rgba(99, 102, 241, 0.2);
+    color: #a5b4fc;
+}
+
+.stc-co-settings .stc-role-badge.is-user {
+    background: rgba(16, 185, 129, 0.18);
+    color: #6ee7b7;
+}
+
+.stc-co-settings .stc-role-badge.is-assistant {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fcd34d;
+}
+
+.stc-co-settings .stc-prompt-textarea {
     width: 100%;
     resize: vertical;
     box-sizing: border-box;
+    font-size: 0.82em;
+    line-height: 1.5;
+    margin: 0;
 }
 
 .stc-co-settings .stc-co-gen-prompt {
@@ -614,20 +891,6 @@
     width: 100%;
     box-sizing: border-box;
     font-family: var(--monoFontFamily, monospace);
-}
-
-.stc-co-settings .stc-co-depth-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    font-size: 0.85em;
-    opacity: 0.8;
-}
-
-.stc-co-settings .stc-co-depth-row input {
-    width: 110px;
-    flex-shrink: 0;
 }
 
 /* ── 响应式:手机端 ─────────────────────────────────────────── */

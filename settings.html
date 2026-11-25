@@ -23,49 +23,131 @@
         </div>
     </div>
 
-    <div class="stc-co-block">
-        <div class="stc-co-block-title">
+    <div id="stc-co-gen-block" class="stc-co-block stc-co-collapsible">
+        <div class="stc-co-collapse-head" role="button" tabindex="0" aria-expanded="false" aria-controls="stc-co-gen-body">
             <i class="fa-solid fa-wand-magic-sparkles"></i>
             <span>AI 选项生成</span>
+            <i class="fa-solid fa-chevron-down stc-co-collapse-arrow" aria-hidden="true"></i>
         </div>
-        <label class="checkbox_label" for="stc-co-auto">
-            <input id="stc-co-auto" type="checkbox" />
-            <span>AI 回复后自动生成选项</span>
-        </label>
-        <div class="stc-co-field-row">
-            <span>生成数量(1–8)</span>
-            <input id="stc-co-gen-count" class="text_pole" type="number" min="1" max="8" step="1" />
+        <div class="stc-co-collapse-panel" aria-hidden="true">
+            <div class="stc-co-collapse-panel-inner">
+                <div id="stc-co-gen-body" class="stc-co-collapse-body">
+                    <label class="checkbox_label" for="stc-co-auto">
+                        <input id="stc-co-auto" type="checkbox" />
+                        <span>AI 回复后自动生成选项</span>
+                    </label>
+                    <div class="stc-co-field-col">
+                        <span>生成规则与要求</span>
+                        <textarea id="stc-co-gen-prompt" class="text_pole stc-co-gen-prompt" rows="8" placeholder="输入选项生成规则与要求"></textarea>
+                        <div id="stc-co-gen-hint" class="stc-co-hint"></div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="stc-co-field-col">
-            <span>提取正则(可选,留空发送原文)</span>
-            <input id="stc-co-gen-regex" class="text_pole" type="text" placeholder='如 /<剧情>([\s\S]*?)<\/剧情>/ 或 <事件>.*?</事件>' autocomplete="off" spellcheck="false" />
-        </div>
-        <div class="stc-co-field-col">
-            <span>排除正则(可选,匹配内容不发送给 AI)</span>
-            <input id="stc-co-gen-exclude-regex" class="text_pole" type="text" placeholder='如 /<thinking>[\s\S]*?<\/thinking>/ 或 \[OOC:.*?\]' autocomplete="off" spellcheck="false" />
-        </div>
-        <textarea id="stc-co-gen-prompt" class="text_pole stc-co-gen-prompt" rows="9" placeholder="生成指令模板"></textarea>
     </div>
 
-    <div class="stc-co-block stc-wi-block">
-        <div class="stc-co-block-title">
+    <div id="stc-co-prompts-block" class="stc-co-block stc-co-collapsible">
+        <div class="stc-co-collapse-head" role="button" tabindex="0" aria-expanded="false" aria-controls="stc-co-prompts-body">
+            <i class="fa-solid fa-file-lines"></i>
+            <span>提示词</span>
+            <i class="fa-solid fa-chevron-down stc-co-collapse-arrow" aria-hidden="true"></i>
+        </div>
+        <div class="stc-co-collapse-panel" aria-hidden="true">
+            <div class="stc-co-collapse-panel-inner">
+                <div id="stc-co-prompts-body" class="stc-co-collapse-body">
+                    <div class="stc-prompts-toolbar">
+                        <span class="stc-co-hint">按请求发送顺序配置各段提示词（支持酒馆全部原生宏，留空自动回退默认）。</span>
+                        <button id="stc-co-prompts-reset" class="menu_button stc-prompts-reset-btn" type="button" title="将以下提示词全部恢复为默认预设">
+                            <i class="fa-solid fa-rotate-left"></i>
+                            <span>恢复默认</span>
+                        </button>
+                    </div>
+                    <div id="stc-co-prompts-list" class="stc-prompts-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="stc-co-regex-block" class="stc-co-block stc-co-collapsible">
+        <div class="stc-co-collapse-head" role="button" tabindex="0" aria-expanded="false" aria-controls="stc-co-regex-body">
+            <i class="fa-solid fa-filter"></i>
+            <span>正则处理</span>
+            <i class="fa-solid fa-chevron-down stc-co-collapse-arrow" aria-hidden="true"></i>
+        </div>
+        <div class="stc-co-collapse-panel" aria-hidden="true">
+            <div class="stc-co-collapse-panel-inner">
+                <div id="stc-co-regex-body" class="stc-co-collapse-body">
+                    <div class="stc-co-hint">先执行「排除正则」再执行「提取正则」；同一列表内支持拖拽排序，按从上到下顺序依次执行。</div>
+
+                    <div class="stc-regex-group stc-co-collapsible" data-kind="exclude">
+                        <div class="stc-co-collapse-head stc-regex-group-head" role="button" tabindex="0" aria-expanded="false" aria-controls="stc-regex-exclude-body">
+                            <div class="stc-regex-group-info">
+                                <span class="stc-regex-group-title">排除正则</span>
+                                <span class="stc-regex-group-desc">匹配内容将被移除，不发送给 AI</span>
+                            </div>
+                            <div class="stc-regex-group-actions">
+                                <button type="button" class="menu_button stc-regex-add-btn" data-kind="exclude" title="新增排除正则" aria-label="新增排除正则">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                                <i class="fa-solid fa-chevron-down stc-co-collapse-arrow" aria-hidden="true"></i>
+                            </div>
+                        </div>
+                        <div class="stc-co-collapse-panel" aria-hidden="true">
+                            <div class="stc-co-collapse-panel-inner">
+                                <div id="stc-regex-exclude-body" class="stc-co-collapse-body stc-regex-group-body">
+                                    <div id="stc-regex-exclude-list" class="stc-regex-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stc-regex-group stc-co-collapsible" data-kind="extract">
+                        <div class="stc-co-collapse-head stc-regex-group-head" role="button" tabindex="0" aria-expanded="false" aria-controls="stc-regex-extract-body">
+                            <div class="stc-regex-group-info">
+                                <span class="stc-regex-group-title">提取正则</span>
+                                <span class="stc-regex-group-desc">从剩余内容中逐级抽取匹配片段</span>
+                            </div>
+                            <div class="stc-regex-group-actions">
+                                <button type="button" class="menu_button stc-regex-add-btn" data-kind="extract" title="新增提取正则" aria-label="新增提取正则">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                                <i class="fa-solid fa-chevron-down stc-co-collapse-arrow" aria-hidden="true"></i>
+                            </div>
+                        </div>
+                        <div class="stc-co-collapse-panel" aria-hidden="true">
+                            <div class="stc-co-collapse-panel-inner">
+                                <div id="stc-regex-extract-body" class="stc-co-collapse-body stc-regex-group-body">
+                                    <div id="stc-regex-extract-list" class="stc-regex-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="stc-co-wi-block" class="stc-co-block stc-co-collapsible stc-wi-block">
+        <div class="stc-co-collapse-head" role="button" tabindex="0" aria-expanded="false" aria-controls="stc-wi-body">
             <i class="fa-solid fa-globe"></i>
             <span>世界书</span>
-            <button id="stc-wi-expand" class="stc-wi-expand-btn" type="button" title="展开世界书列表" aria-expanded="false">
-                <i class="fa-solid fa-chevron-down"></i>
-            </button>
+            <i class="fa-solid fa-chevron-down stc-co-collapse-arrow" aria-hidden="true"></i>
         </div>
-        <div id="stc-wi-body" class="stc-wi-body" hidden>
-            <div class="wi-toolbar">
-                <input id="stc-wi-search" class="text_pole" type="text" placeholder="搜索世界书或条目…" autocomplete="off" />
-                <button id="stc-wi-refresh" class="menu_button">
-                    <i class="fa-solid fa-rotate"></i>
-                </button>
+        <div class="stc-co-collapse-panel" aria-hidden="true">
+            <div class="stc-co-collapse-panel-inner">
+                <div id="stc-wi-body" class="stc-co-collapse-body stc-wi-body">
+                    <div class="wi-toolbar">
+                        <input id="stc-wi-search" class="text_pole" type="text" placeholder="搜索世界书或条目…" autocomplete="off" />
+                        <button id="stc-wi-refresh" class="menu_button" type="button">
+                            <i class="fa-solid fa-rotate"></i>
+                        </button>
+                    </div>
+                    <div id="stc-wi-books" class="wi-books">
+                        <div class="wi-empty">正在加载世界书…</div>
+                    </div>
+                    <div id="stc-wi-summary" class="wi-summary"></div>
+                </div>
             </div>
-            <div id="stc-wi-books" class="wi-books">
-                <div class="wi-empty">正在加载世界书…</div>
-            </div>
-            <div id="stc-wi-summary" class="wi-summary"></div>
         </div>
     </div>
 
@@ -101,27 +183,11 @@
             <input id="stc-co-api-key" class="text_pole" type="password" placeholder="API Key" autocomplete="new-password" />
             <input id="stc-co-api-model" class="text_pole" type="text" placeholder="模型名,如 gpt-4o-mini" autocomplete="off" />
             <div class="stc-co-test-row">
-                <button id="stc-co-test-btn" class="menu_button">
+                <button id="stc-co-test-btn" class="menu_button" type="button">
                     <i class="fa-solid fa-vial"></i>
                     <span>测试连接</span>
                 </button>
             </div>
-        </div>
-    </div>
-
-    <div class="stc-co-block">
-        <div class="stc-co-block-title">
-            <i class="fa-solid fa-unlock-keyhole"></i>
-            <span>破限词注入</span>
-        </div>
-        <label class="checkbox_label" for="stc-co-jb-enabled">
-            <input id="stc-co-jb-enabled" type="checkbox" />
-            <span>启用破限词注入</span>
-        </label>
-        <textarea id="stc-co-jb-text" class="text_pole stc-co-jb-text" rows="6" placeholder="输入破限词内容…"></textarea>
-        <div class="stc-co-depth-row">
-            <span>注入深度(越大越靠顶部,默认 999)</span>
-            <input id="stc-co-jb-depth" class="text_pole" type="number" min="1" max="10000" step="1" />
         </div>
     </div>
 </div>
